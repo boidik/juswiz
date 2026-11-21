@@ -10,18 +10,31 @@ import {
   DownloadCloud, 
   Sparkles,
   Share2,
-  Edit3
+  Edit3,
+  Gavel,
+  CheckCircle2,
+  Eye
 } from 'lucide-react';
+import { OrderReaderModal } from './OrderReaderModal';
 
-export const DocumentVault = ({ targetCaseId, onOpenUpload, onOpenShareBrief }) => {
+export const DocumentVault = ({ 
+  caseId, 
+  targetCaseId, 
+  driveFolderUrl, 
+  onOpenUpload, 
+  onOpenShareBrief,
+  onOpenOrderFetcher 
+}) => {
   const { documents, systemConfig, cases, showToast } = useApp();
 
-  const caseDocs = documents.filter(d => d.caseId === targetCaseId);
-  const targetCase = cases.find(c => c.id === targetCaseId);
+  const activeCaseId = targetCaseId || caseId;
+  const caseDocs = documents.filter(d => d.caseId === activeCaseId);
+  const targetCase = cases.find(c => c.id === activeCaseId);
 
   const [selectedFolder, setSelectedFolder] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('DATE');
+  const [readingOrder, setReadingOrder] = useState(null);
 
   const filteredDocs = caseDocs
     .filter(doc => {
@@ -87,8 +100,18 @@ export const DocumentVault = ({ targetCaseId, onOpenUpload, onOpenShareBrief }) 
               <div className="knob"><DownloadCloud className="w-3.5 h-3.5 text-white" /></div>
             </button>
 
+            {onOpenOrderFetcher && (
+              <button
+                onClick={onOpenOrderFetcher}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-pill bg-warm-sand/80 hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
+                title="Fetch live bench orders from judicial portal"
+              >
+                <Gavel className="w-3.5 h-3.5 text-terracotta" /> Fetch Order
+              </button>
+            )}
+
             <a
-              href={targetCase?.driveFolderUrl || 'https://drive.google.com/drive/my-drive'}
+              href={targetCase?.driveFolderUrl || driveFolderUrl || 'https://drive.google.com/drive/my-drive'}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-pill bg-white hover:bg-warm-sand/50 text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
@@ -122,6 +145,7 @@ export const DocumentVault = ({ targetCaseId, onOpenUpload, onOpenShareBrief }) 
 
           {systemConfig.driveFolderTemplate?.map(f => {
             const count = caseDocs.filter(d => d.folder === f.name).length;
+            const isOrdersFolder = f.name === '05_Orders_and_Judgments';
 
             return (
               <button
@@ -130,9 +154,12 @@ export const DocumentVault = ({ targetCaseId, onOpenUpload, onOpenShareBrief }) 
                 className={`px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
                   selectedFolder === f.name
                     ? 'bg-warm-obsidian text-white shadow-xs'
+                    : isOrdersFolder && count > 0
+                    ? 'bg-terracotta-soft text-terracotta hover:bg-terracotta/20 border border-terracotta/30'
                     : 'bg-white/70 text-warm-graphite hover:bg-white'
                 }`}
               >
+                {isOrdersFolder && <Gavel className="w-3 h-3 text-terracotta" />}
                 <span>{f.name}</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                   selectedFolder === f.name ? 'bg-white/20 text-white' : 'bg-warm-sand text-warm-obsidian'
@@ -148,97 +175,169 @@ export const DocumentVault = ({ targetCaseId, onOpenUpload, onOpenShareBrief }) 
       {/* Document Items List */}
       <div className="space-y-3">
         {filteredDocs.length === 0 ? (
-          <div className="glass-panel rounded-4xl p-12 text-center text-warm-muted space-y-1">
-            <FileText className="w-10 h-10 mx-auto stroke-1 text-warm-sand" />
-            <p className="text-sm font-semibold text-warm-obsidian font-display">No files in this folder</p>
-            <p className="text-xs">Upload new client pleadings, evidence, or draft petitions.</p>
+          <div className="glass-panel rounded-4xl p-12 text-center text-warm-muted space-y-3">
+            {selectedFolder === '05_Orders_and_Judgments' ? (
+              <>
+                <Gavel className="w-12 h-12 mx-auto stroke-1 text-terracotta animate-pulse" />
+                <p className="text-sm font-semibold text-warm-obsidian font-display">No Bench Orders in this Dossier Yet</p>
+                <p className="text-xs text-warm-muted max-w-md mx-auto">
+                  Automatically query and ingest daily cause lists and signed orders directly from the court portal.
+                </p>
+                {onOpenOrderFetcher && (
+                  <div className="pt-2">
+                    <button
+                      onClick={onOpenOrderFetcher}
+                      className="capsule-btn-dark text-xs inline-flex"
+                    >
+                      <span>Fetch Live Court Order Now</span>
+                      <div className="knob"><Gavel className="w-3.5 h-3.5 text-white" /></div>
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <FileText className="w-10 h-10 mx-auto stroke-1 text-warm-sand" />
+                <p className="text-sm font-semibold text-warm-obsidian font-display">No files in this folder</p>
+                <p className="text-xs">Upload new client pleadings, evidence, or draft petitions.</p>
+              </>
+            )}
           </div>
         ) : (
-          filteredDocs.map(doc => (
-            <div
-              key={doc.id}
-              className="glass-panel hover:glass-panel-elevated rounded-3xl p-4 sm:p-5 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-            >
-              
-              {/* File Details */}
-              <div className="space-y-1.5 flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-warm-obsidian break-all hover:text-terracotta cursor-pointer">
-                    {doc.name}
-                  </span>
-                  <span className="text-[10px] font-medium bg-warm-sand/50 text-warm-graphite px-2.5 py-0.5 rounded-pill">
-                    {doc.fileSize}
-                  </span>
-                  <span className="text-[10px] font-semibold bg-terracotta-soft text-terracotta border border-terracotta/20 px-2.5 py-0.5 rounded-pill">
-                    {doc.category}
-                  </span>
-                </div>
+          filteredDocs.map(doc => {
+            const isCourtOrder = 
+              doc.category === 'Court Order' || 
+              doc.folder === '05_Orders_and_Judgments' || 
+              (doc.tags && (doc.tags.includes('Auto-Fetched') || doc.tags.includes('Verified Bench Order')));
+            const orderSnippet = doc.summary || doc.orderText || (isCourtOrder ? targetCase?.lastOrder : null);
 
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-warm-muted">
-                  <span className="font-mono text-[11px] text-warm-graphite">
-                    📁 {targetCase?.driveFolderPath}/{doc.folder}/
-                  </span>
-                  <span>•</span>
-                  <span>Uploaded by: <strong className="text-warm-obsidian">{doc.uploadedBy}</strong></span>
-                  <span>•</span>
-                  <span>{new Date(doc.uploadedAt).toLocaleDateString()}</span>
-                </div>
-
-                {/* Tags */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {doc.tags?.map((t, i) => (
-                    <span key={i} className="text-[10px] font-medium bg-white/80 text-warm-graphite px-2.5 py-0.5 rounded-pill border border-warm-borderSubtle">
-                      #{t}
-                    </span>
-                  ))}
-                  {doc.relevance && (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-pill border border-emerald-200 flex items-center gap-0.5">
-                      <Sparkles className="w-2.5 h-2.5 text-emerald-600" /> {doc.relevance}% Match
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2 shrink-0">
+            return (
+              <div
+                key={doc.id}
+                className={`rounded-3xl p-4 sm:p-5 transition-all flex flex-col md:flex-row md:items-start justify-between gap-4 ${
+                  isCourtOrder 
+                    ? 'glass-panel-elevated border-l-4 border-l-terracotta bg-white/85 shadow-glass' 
+                    : 'glass-panel hover:glass-panel-elevated'
+                }`}
+              >
                 
-                {/* Live Co-Edit Google Docs */}
-                {doc.coEditUrl && (
+                {/* File Details */}
+                <div className="space-y-2 flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isCourtOrder && (
+                      <span className="text-[10px] font-bold bg-terracotta text-white px-2.5 py-0.5 rounded-pill flex items-center gap-1 shadow-xs">
+                        <Gavel className="w-3 h-3 text-white" /> Bench Order Sheet
+                      </span>
+                    )}
+                    <span 
+                      onClick={() => isCourtOrder && setReadingOrder(doc)}
+                      className={`font-mono text-xs font-bold text-warm-obsidian break-all cursor-pointer ${
+                        isCourtOrder ? 'hover:text-terracotta underline decoration-terracotta/40' : 'hover:text-terracotta'
+                      }`}
+                    >
+                      {doc.name || doc.fileName || doc.originalName || 'Document.pdf'}
+                    </span>
+                    <span className="text-[10px] font-medium bg-warm-sand/50 text-warm-graphite px-2.5 py-0.5 rounded-pill">
+                      {doc.fileSize || '1.4 MB'}
+                    </span>
+                    <span className="text-[10px] font-semibold bg-terracotta-soft text-terracotta border border-terracotta/20 px-2.5 py-0.5 rounded-pill">
+                      {doc.category || 'Court Order'}
+                    </span>
+                  </div>
+
+                  {/* Order Synopsis Snippet if court order */}
+                  {orderSnippet && (
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-warm-obsidian italic font-sans leading-relaxed">
+                      "{orderSnippet}"
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-warm-muted">
+                    <span className="font-mono text-[11px] text-warm-graphite">
+                      📁 {targetCase?.driveFolderPath || '/Dossier'}/{doc.folder || '05_Orders_and_Judgments'}/
+                    </span>
+                    <span>•</span>
+                    <span>Ingested by: <strong className="text-warm-obsidian">{doc.uploadedBy || 'Intelligent Fetcher'}</strong></span>
+                    <span>•</span>
+                    <span>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'Recent'}</span>
+                  </div>
+
+                  {/* Tags */}
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {doc.tags?.map((t, i) => (
+                      <span key={i} className="text-[10px] font-medium bg-white/80 text-warm-graphite px-2.5 py-0.5 rounded-pill border border-warm-borderSubtle">
+                        #{t}
+                      </span>
+                    ))}
+                    {doc.relevance && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-pill border border-emerald-200 flex items-center gap-0.5">
+                        <Sparkles className="w-2.5 h-2.5 text-emerald-600" /> {doc.relevance}% Match
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 shrink-0 pt-2 md:pt-0">
+                  
+                  {/* Read Order Synopsis Button */}
+                  {isCourtOrder && (
+                    <button
+                      onClick={() => setReadingOrder(doc)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-terracotta text-white hover:bg-terracotta/90 text-xs font-semibold transition-all shadow-xs"
+                      title="Read full Bench Order Sheet & Directions"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Read Order</span>
+                    </button>
+                  )}
+
+                  {/* Live Co-Edit Google Docs */}
+                  {doc.coEditUrl && (
+                    <a
+                      href={doc.coEditUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-terracotta-soft hover:bg-terracotta text-terracotta hover:text-white border border-terracotta/30 text-xs font-semibold transition-all shadow-xs"
+                      title="Open live Google Doc for team co-editing"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Live Co-Edit</span>
+                    </a>
+                  )}
+
                   <a
-                    href={doc.coEditUrl}
+                    href={doc.driveUrl || targetCase?.driveFolderUrl || 'https://drive.google.com/drive/my-drive'}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-terracotta-soft hover:bg-terracotta text-terracotta hover:text-white border border-terracotta/30 text-xs font-semibold transition-all shadow-xs"
-                    title="Open live Google Doc for team co-editing"
+                    className="px-3.5 py-1.5 rounded-pill border border-warm-borderSubtle hover:bg-white text-xs font-medium text-warm-graphite flex items-center gap-1.5 transition-colors shadow-xs"
                   >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>Live Co-Edit</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-terracotta" />
+                    <span>{doc.hasRealFileLink ? 'View File in Drive' : 'View in Case Drive'}</span>
                   </a>
-                )}
 
-                <a
-                  href={doc.driveUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-3.5 py-1.5 rounded-pill border border-warm-borderSubtle hover:bg-white text-xs font-medium text-warm-graphite flex items-center gap-1.5 transition-colors shadow-xs"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 text-terracotta" />
-                  <span>{doc.hasRealFileLink ? 'View File in Drive' : 'View in Case Drive'}</span>
-                </a>
+                  <button
+                    onClick={() => copyDocLink(doc.driveUrl || targetCase?.driveFolderUrl || '')}
+                    className="p-2 rounded-full border border-warm-borderSubtle hover:bg-white text-warm-muted hover:text-warm-obsidian transition-colors"
+                    title="Copy Direct Share Link"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-                <button
-                  onClick={() => copyDocLink(doc.driveUrl)}
-                  className="p-2 rounded-full border border-warm-borderSubtle hover:bg-white text-warm-muted hover:text-warm-obsidian transition-colors"
-                  title="Copy Direct Share Link"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                </button>
               </div>
-
-            </div>
-          ))
+            );
+          })
         )}
       </div>
+
+      {/* In-App Order Reader Modal */}
+      <OrderReaderModal
+        isOpen={Boolean(readingOrder)}
+        onClose={() => setReadingOrder(null)}
+        order={readingOrder}
+        caseData={targetCase}
+      />
 
     </div>
   );

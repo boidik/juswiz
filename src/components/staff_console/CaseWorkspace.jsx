@@ -21,7 +21,8 @@ import {
   Save,
   CheckCircle2,
   FolderTree,
-  Sparkles
+  Sparkles,
+  Eye
 } from 'lucide-react';
 import { DocumentVault } from './DocumentVault';
 import { FileUploadModal } from './FileUploadModal';
@@ -29,6 +30,7 @@ import { GMeetModal } from './GMeetModal';
 import { ShareBriefModal } from './ShareBriefModal';
 import { HearingDateModal } from './HearingDateModal';
 import { OrderFetcherModal } from './OrderFetcherModal';
+import { OrderReaderModal } from './OrderReaderModal';
 import { extractDriveFolderId, isValidGoogleDriveId } from '../../services/googleWorkspace';
 
 export const CaseWorkspace = () => {
@@ -57,6 +59,7 @@ export const CaseWorkspace = () => {
   const [isDriveEditOpen, setIsDriveEditOpen] = useState(false);
   const [customDriveInput, setCustomDriveInput] = useState('');
   const [isProvisioningDrive, setIsProvisioningDrive] = useState(false);
+  const [selectedOrderToRead, setSelectedOrderToRead] = useState(null);
 
   if (!selectedCase) {
     return (
@@ -71,7 +74,11 @@ export const CaseWorkspace = () => {
   const caseDocs = documents.filter(d => d.caseId === selectedCase.id);
   const caseTasks = tasks.filter(t => t.caseId === selectedCase.id);
   const caseConfs = conferences.filter(c => c.caseId === selectedCase.id);
-  const orderDocs = caseDocs.filter(d => d.folder === '05_Orders_and_Judgments');
+  const orderDocs = caseDocs.filter(d => 
+    d.folder === '05_Orders_and_Judgments' || 
+    d.category === 'Court Order' || 
+    (d.tags && (d.tags.includes('Auto-Fetched') || d.tags.includes('Verified Bench Order')))
+  );
 
   const formatEditorialDate = (dateString) => {
     if (!dateString) return { dayOfWeek: 'TBD', dayOfMonth: '--' };
@@ -232,13 +239,66 @@ export const CaseWorkspace = () => {
 
           <button
             onClick={() => setIsOrderFetcherOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-warm-sand/50 hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all ml-auto"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-warm-sand/80 hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all ml-auto shadow-xs"
           >
             <Cpu className="w-3.5 h-3.5 text-terracotta" /> Auto Fetch Order
           </button>
         </div>
 
       </div>
+
+      {/* Live Court Bench Order Sheet / Cause List Status Banner */}
+      {selectedCase.lastOrder && (
+        <div className="glass-panel-elevated rounded-3xl p-5 border border-terracotta/25 relative overflow-hidden bg-gradient-to-r from-amber-500/10 via-white/80 to-terracotta/10 space-y-3 shadow-glass">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full sun-gradient-circle text-white flex items-center justify-center shadow-amber-glow shrink-0">
+                <Gavel className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-warm-obsidian font-display uppercase tracking-wider">
+                    Official Bench Order Sheet
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-pill text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5 text-emerald-600" /> Auto-Fetched ({selectedCase.courtName})
+                  </span>
+                </div>
+                <p className="text-[11px] text-warm-muted">
+                  Hearing: <strong className="text-warm-obsidian">{selectedCase.lastHearingDate || 'Recent'}</strong> • Next Listing: <strong className="text-terracotta">{selectedCase.nextHearingDate || 'Pending Listing'}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedOrderToRead({
+                  name: `Order_Sheet_${selectedCase.caseNumber}.pdf`,
+                  summary: selectedCase.lastOrder,
+                  courtName: selectedCase.courtName,
+                  bench: selectedCase.bench,
+                  hearingDate: selectedCase.lastHearingDate,
+                  driveUrl: selectedCase.driveFolderUrl
+                })}
+                className="px-3.5 py-1.5 rounded-pill bg-white hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+              >
+                <Eye className="w-3.5 h-3.5 text-terracotta" /> Read Full Order
+              </button>
+
+              <button
+                onClick={() => setIsOrderFetcherOpen(true)}
+                className="px-3.5 py-1.5 rounded-pill bg-terracotta text-white text-xs font-semibold shadow-xs hover:bg-terracotta/90 flex items-center gap-1.5 transition-all"
+              >
+                <Cpu className="w-3.5 h-3.5" /> Fetch Daily Orders Online
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-white/95 border border-warm-borderSubtle text-xs leading-relaxed text-warm-obsidian font-medium">
+            <p className="italic">"{selectedCase.lastOrder}"</p>
+          </div>
+        </div>
+      )}
 
       {/* Workspace Tabs */}
       <div className="flex border-b border-warm-borderSubtle bg-white/30 backdrop-blur-md rounded-t-3xl overflow-x-auto no-scrollbar px-3 sm:px-6">
@@ -294,8 +354,12 @@ export const CaseWorkspace = () => {
       {/* Tab Panels */}
       {activeTab === 'VAULT' && (
         <DocumentVault 
-          caseId={selectedCase.id} 
+          caseId={selectedCase.id}
+          targetCaseId={selectedCase.id}
           driveFolderUrl={selectedCase.driveFolderUrl}
+          onOpenUpload={() => setIsUploadOpen(true)}
+          onOpenShareBrief={() => setIsShareBriefOpen(true)}
+          onOpenOrderFetcher={() => setIsOrderFetcherOpen(true)}
         />
       )}
 
@@ -384,35 +448,105 @@ export const CaseWorkspace = () => {
 
       {activeTab === 'ORDERS' && (
         <div className="glass-panel rounded-3xl p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-warm-obsidian font-display">Bench Orders Repository</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-warm-obsidian font-display">Bench Orders & Judicial Decisions</h3>
+                <span className="px-2 py-0.5 rounded-pill text-[10px] font-bold bg-terracotta-soft text-terracotta border border-terracotta/20">
+                  {orderDocs.length} Order Sheets
+                </span>
+              </div>
+              <p className="text-xs text-warm-muted mt-0.5">
+                Cause list recordings, interim injunctions, and signed court orders
+              </p>
+            </div>
+
             <button
               onClick={() => setIsOrderFetcherOpen(true)}
-              className="px-3.5 py-1.5 rounded-pill bg-terracotta text-white text-xs font-semibold flex items-center gap-1 shadow-xs hover:bg-terracotta/90"
+              className="capsule-btn-dark text-xs self-start sm:self-auto"
             >
-              <Cpu className="w-3.5 h-3.5" /> Fetch Live Order
+              <span>Fetch Live Order from Court</span>
+              <div className="knob"><Cpu className="w-3.5 h-3.5 text-white" /></div>
             </button>
           </div>
 
-          <div className="space-y-2">
-            {orderDocs.map(o => (
-              <div key={o.id} className="p-4 bg-white/70 rounded-2xl border border-warm-borderSubtle flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs font-mono font-bold text-warm-obsidian">{o.fileName}</p>
-                  <p className="text-[11px] text-warm-muted mt-0.5">Uploaded: {o.uploadedAt} • Size: {o.fileSize}</p>
-                </div>
+          {orderDocs.length === 0 ? (
+            <div className="p-12 text-center text-warm-muted space-y-3 bg-white/40 rounded-3xl border border-dashed border-warm-borderSubtle">
+              <Gavel className="w-12 h-12 mx-auto stroke-1 text-terracotta animate-pulse" />
+              <p className="text-sm font-semibold text-warm-obsidian font-display">No Bench Orders Ingested Yet</p>
+              <p className="text-xs text-warm-muted max-w-md mx-auto">
+                No orders have been pulled from the adjudicating court for this matter yet. Click below to query the official court portal.
+              </p>
+              <button
+                onClick={() => setIsOrderFetcherOpen(true)}
+                className="capsule-btn-dark text-xs inline-flex"
+              >
+                <span>Trigger Automated Live Order Fetch</span>
+                <div className="knob"><Cpu className="w-3.5 h-3.5 text-white" /></div>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {orderDocs.map(o => {
+                const orderTitle = o.name || o.fileName || o.originalName || 'Bench_Order.pdf';
+                const orderSummary = o.summary || o.orderText || selectedCase.lastOrder;
+                const formattedDate = o.uploadedAt ? new Date(o.uploadedAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent Listing';
 
-                <a
-                  href={o.driveUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-3 py-1 rounded-pill border border-warm-borderSubtle text-warm-graphite text-xs hover:bg-white flex items-center gap-1 font-medium shadow-xs"
-                >
-                  <ExternalLink className="w-3 h-3 text-terracotta" /> View Order
-                </a>
-              </div>
-            ))}
-          </div>
+                return (
+                  <div key={o.id} className="p-4 sm:p-5 bg-white/85 rounded-3xl border border-warm-borderSubtle/80 flex flex-col md:flex-row md:items-start justify-between gap-4 shadow-glass hover:glass-panel-elevated transition-all">
+                    <div className="space-y-2 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-bold bg-terracotta text-white px-2.5 py-0.5 rounded-pill flex items-center gap-1 shadow-xs">
+                          <Gavel className="w-3 h-3 text-white" /> Verified Order
+                        </span>
+                        <span 
+                          onClick={() => setSelectedOrderToRead(o)}
+                          className="text-xs font-mono font-bold text-warm-obsidian hover:text-terracotta cursor-pointer underline decoration-terracotta/40 break-all"
+                        >
+                          {orderTitle}
+                        </span>
+                        <span className="text-[10px] font-medium bg-warm-sand/60 text-warm-graphite px-2 py-0.5 rounded-pill">
+                          {o.fileSize || '1.4 MB'}
+                        </span>
+                      </div>
+
+                      {orderSummary && (
+                        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-warm-obsidian italic font-sans leading-relaxed">
+                          "{orderSummary}"
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-warm-muted">
+                        <span>Ingested: <strong className="text-warm-obsidian">{formattedDate}</strong></span>
+                        <span>•</span>
+                        <span>Source: <strong className="text-warm-obsidian">{o.uploadedBy || selectedCase.courtName}</strong></span>
+                        <span>•</span>
+                        <span className="font-mono text-[11px] text-warm-graphite">📁 /05_Orders_and_Judgments</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 pt-2 md:pt-0">
+                      <button
+                        onClick={() => setSelectedOrderToRead(o)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-terracotta text-white hover:bg-terracotta/90 text-xs font-semibold shadow-xs transition-all"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Read Synopsis
+                      </button>
+
+                      <a
+                        href={o.driveUrl || selectedCase.driveFolderUrl || 'https://drive.google.com/drive/my-drive'}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 rounded-pill border border-warm-borderSubtle text-warm-graphite text-xs hover:bg-white flex items-center gap-1 font-medium shadow-xs"
+                      >
+                        <ExternalLink className="w-3 h-3 text-terracotta" /> View in Drive
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -569,6 +703,13 @@ export const CaseWorkspace = () => {
         isOpen={isOrderFetcherOpen}
         onClose={() => setIsOrderFetcherOpen(false)}
         targetCase={selectedCase}
+      />
+
+      <OrderReaderModal
+        isOpen={Boolean(selectedOrderToRead)}
+        onClose={() => setSelectedOrderToRead(null)}
+        order={selectedOrderToRead}
+        caseData={selectedCase}
       />
 
     </div>

@@ -9,8 +9,11 @@ import {
   AlertTriangle, 
   ArrowRight,
   Gavel,
-  FolderOpen
+  FolderOpen,
+  Eye,
+  Sparkles
 } from 'lucide-react';
+import { OrderReaderModal } from '../staff_console/OrderReaderModal';
 
 export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false }) => {
   const { cases, setSelectedCaseId, switchRole, systemConfig } = useApp();
@@ -20,6 +23,7 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedForum, setSelectedForum] = useState('ALL');
   const [selectedUrgency, setSelectedUrgency] = useState('ALL');
+  const [readingCaseOrder, setReadingCaseOrder] = useState(null);
 
   const filteredCases = baseCases.filter(c => {
     const matchesSearch = 
@@ -188,14 +192,22 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
                   </div>
 
                   {/* Order Sheet Snippet */}
-                  <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
-                    isCritical 
-                      ? 'bg-white/5 border border-white/10 text-white/80' 
-                      : 'bg-white/70 border border-warm-borderSubtle text-warm-graphite'
-                  }`}>
-                    <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-wider mb-1 opacity-60">
-                      <span>Last Bench Order</span>
-                      <span>Drive /05_Orders</span>
+                  <div 
+                    onClick={() => setReadingCaseOrder(c)}
+                    className={`p-3.5 rounded-2xl text-xs leading-relaxed cursor-pointer transition-all ${
+                      isCritical 
+                        ? 'bg-white/10 hover:bg-white/15 border border-white/15 text-white/90' 
+                        : 'bg-white/80 hover:bg-white border border-warm-borderSubtle text-warm-graphite hover:border-terracotta/40 shadow-xs'
+                    }`}
+                    title="Click to view full bench order synopsis"
+                  >
+                    <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-wider mb-1.5 opacity-80">
+                      <span className="flex items-center gap-1 text-terracotta font-bold">
+                        <Gavel className="w-3 h-3" /> Latest Bench Order
+                      </span>
+                      <span className="flex items-center gap-1 font-semibold text-warm-muted hover:text-terracotta">
+                        <Eye className="w-3 h-3" /> Read Synopsis
+                      </span>
                     </div>
                     <p className="line-clamp-2 italic">
                       "{c.lastOrder}"
@@ -272,6 +284,21 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
           })
         )}
       </div>
+
+      {/* In-App Order Reader Modal */}
+      <OrderReaderModal
+        isOpen={Boolean(readingCaseOrder)}
+        onClose={() => setReadingCaseOrder(null)}
+        order={{
+          summary: readingCaseOrder?.lastOrder,
+          courtName: readingCaseOrder?.courtName,
+          bench: readingCaseOrder?.bench,
+          hearingDate: readingCaseOrder?.lastHearingDate,
+          driveUrl: readingCaseOrder?.driveFolderUrl,
+          name: `Order_Sheet_${readingCaseOrder?.caseNumber}.pdf`
+        }}
+        caseData={readingCaseOrder}
+      />
 
     </div>
   );

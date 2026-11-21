@@ -221,12 +221,24 @@ export const AppProvider = ({ children }) => {
         const data = d.data();
         const rawFileUrl = data.driveUrl || '';
         const realFileId = extractDriveFileId(rawFileUrl) || (isValidGoogleDriveId(data.driveFileId) ? data.driveFileId : null);
+        const realFolderId = extractDriveFolderId(rawFileUrl);
+
+        let cleanDocUrl;
+        if (realFileId) {
+          cleanDocUrl = `https://drive.google.com/file/d/${realFileId}/view`;
+        } else if (realFolderId) {
+          cleanDocUrl = `https://drive.google.com/drive/folders/${realFolderId}`;
+        } else if (rawFileUrl && rawFileUrl.includes('drive.google.com/drive/search')) {
+          cleanDocUrl = rawFileUrl;
+        } else {
+          cleanDocUrl = systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive';
+        }
 
         list.push({ 
           id: d.id, 
           ...data,
           driveFileId: realFileId,
-          driveUrl: realFileId ? `https://drive.google.com/file/d/${realFileId}/view` : (systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive'),
+          driveUrl: cleanDocUrl,
           hasRealFileLink: Boolean(realFileId)
         });
       });
@@ -802,6 +814,14 @@ export const AppProvider = ({ children }) => {
         tags: ['Auto-Fetched', courtMeta.name, 'Verified Bench Order'],
         isAutoIndexed: true,
         relevance: 100,
+        summary: scrapedSummary,
+        orderText: scrapedSummary,
+        courtName: courtMeta.name,
+        portalUrl: courtMeta.portalUrl || 'https://services.ecourts.gov.in',
+        hearingDate: today,
+        bench: targetCase.bench || 'Standard Bench',
+        caseNumber: targetCase.caseNumber,
+        caseTitle: targetCase.title,
         createdAt: serverTimestamp()
       };
 
