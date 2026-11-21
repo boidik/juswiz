@@ -22,7 +22,8 @@ import {
   CheckCircle2,
   FolderTree,
   Sparkles,
-  Eye
+  Eye,
+  Edit3
 } from 'lucide-react';
 import { DocumentVault } from './DocumentVault';
 import { FileUploadModal } from './FileUploadModal';
@@ -244,6 +245,17 @@ export const CaseWorkspace = () => {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
           >
             <Edit3 className="w-3.5 h-3.5 text-terracotta" /> Edit Docket
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ORDERS')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-pill text-xs font-semibold transition-all shadow-xs ${
+              activeTab === 'ORDERS' 
+                ? 'bg-terracotta text-white shadow-amber-glow' 
+                : 'bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle'
+            }`}
+          >
+            <Gavel className="w-3.5 h-3.5 text-terracotta" /> View Orders ({orderDocs.length})
           </button>
 
           <button

@@ -18,7 +18,7 @@ import { OrderReaderModal } from '../staff_console/OrderReaderModal';
 import { CaseRegistrationModal } from '../software_admin/CaseRegistrationModal';
 
 export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false }) => {
-  const { cases, setSelectedCaseId, switchRole, systemConfig } = useApp();
+  const { cases, documents, setSelectedCaseId, switchRole, systemConfig } = useApp();
 
   const baseCases = casesList || cases;
 
@@ -133,6 +133,17 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
             const isCritical = c.urgency === 'CRITICAL';
             const { dayOfWeek, dayOfMonth } = formatEditorialDate(c.nextHearingDate);
 
+            // Auto-fetched orders linked to this case
+            const caseOrders = (documents || []).filter(d => 
+              d.caseId === c.id && (
+                d.folder === '05_Orders_and_Judgments' || 
+                d.category === 'Court Order' || 
+                (d.tags && (d.tags.includes('Auto-Fetched') || d.tags.includes('Verified Bench Order')))
+              )
+            );
+            const latestOrderDoc = caseOrders[0] || null;
+            const effectiveLastOrder = c.lastOrder || latestOrderDoc?.summary || latestOrderDoc?.orderText || null;
+
             return (
               <div
                 key={c.id}
@@ -194,28 +205,40 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
                     <span className="truncate max-w-[150px]">Client: {c.clientName}</span>
                   </div>
 
-                  {/* Order Sheet Snippet */}
-                  <div 
-                    onClick={() => setReadingCaseOrder(c)}
-                    className={`p-3.5 rounded-2xl text-xs leading-relaxed cursor-pointer transition-all ${
-                      isCritical 
-                        ? 'bg-white/10 hover:bg-white/15 border border-white/15 text-white/90' 
-                        : 'bg-white/80 hover:bg-white border border-warm-borderSubtle text-warm-graphite hover:border-terracotta/40 shadow-xs'
-                    }`}
-                    title="Click to view full bench order synopsis"
-                  >
-                    <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-wider mb-1.5 opacity-80">
-                      <span className="flex items-center gap-1 text-terracotta font-bold">
-                        <Gavel className="w-3 h-3" /> Latest Bench Order
-                      </span>
-                      <span className="flex items-center gap-1 font-semibold text-warm-muted hover:text-terracotta">
-                        <Eye className="w-3 h-3" /> Read Synopsis
-                      </span>
+                  {/* Order Sheet Snippet with High-Visibility Judicial Card */}
+                  {effectiveLastOrder && (
+                    <div 
+                      onClick={() => setReadingCaseOrder({
+                        ...c,
+                        lastOrder: effectiveLastOrder,
+                        orderDoc: latestOrderDoc
+                      })}
+                      className={`p-3.5 rounded-2xl text-xs leading-relaxed cursor-pointer transition-all border ${
+                        isCritical 
+                          ? 'bg-white/10 hover:bg-white/15 border-white/20 text-white/95' 
+                          : 'bg-white/90 hover:bg-white border-terracotta/30 text-warm-obsidian hover:shadow-glass hover:border-terracotta'
+                      }`}
+                      title="Click to view full bench order transcript"
+                    >
+                      <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-wider mb-1.5">
+                        <span className="flex items-center gap-1.5 text-terracotta font-bold">
+                          <Gavel className="w-3.5 h-3.5 text-terracotta" />
+                          <span>Latest Bench Order</span>
+                          {caseOrders.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-pill bg-terracotta text-white text-[9px] font-extrabold shadow-xs">
+                              {caseOrders.length} {caseOrders.length === 1 ? 'Sheet' : 'Sheets'}
+                            </span>
+                          )}
+                        </span>
+                        <span className="flex items-center gap-1 font-semibold text-warm-graphite hover:text-terracotta bg-warm-sand/50 px-2 py-0.5 rounded-pill">
+                          <Eye className="w-3 h-3 text-terracotta" /> Read Synopsis
+                        </span>
+                      </div>
+                      <p className="line-clamp-2 italic font-sans font-medium text-xs leading-relaxed">
+                        "{effectiveLastOrder}"
+                      </p>
                     </div>
-                    <p className="line-clamp-2 italic">
-                      "{c.lastOrder}"
-                    </p>
-                  </div>
+                  )}
                 </div>
 
                 {/* Bottom Section: Pinterest Editorial Date + Capsule Button */}
@@ -304,14 +327,14 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
       <OrderReaderModal
         isOpen={Boolean(readingCaseOrder)}
         onClose={() => setReadingCaseOrder(null)}
-        order={{
+        order={readingCaseOrder?.orderDoc || (readingCaseOrder ? {
           summary: readingCaseOrder?.lastOrder,
           courtName: readingCaseOrder?.courtName,
           bench: readingCaseOrder?.bench,
           hearingDate: readingCaseOrder?.lastHearingDate,
           driveUrl: readingCaseOrder?.driveFolderUrl,
           name: `Order_Sheet_${readingCaseOrder?.caseNumber}.pdf`
-        }}
+        } : null)}
         caseData={readingCaseOrder}
       />
 

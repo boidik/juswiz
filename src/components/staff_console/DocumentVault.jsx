@@ -61,8 +61,78 @@ export const DocumentVault = ({
     showToast('File link copied to clipboard!');
   };
 
+  const orderDocs = caseDocs.filter(d => 
+    d.folder === '05_Orders_and_Judgments' || 
+    d.category === 'Court Order' || 
+    (d.tags && (d.tags.includes('Auto-Fetched') || d.tags.includes('Verified Bench Order')))
+  );
+
   return (
     <div className="space-y-4">
+
+      {/* Auto-Fetched Court Orders Quick Panel */}
+      {orderDocs.length > 0 && (
+        <div className="glass-panel-elevated rounded-3xl p-5 border border-terracotta/30 bg-gradient-to-r from-amber-500/10 via-white/85 to-terracotta/10 shadow-glass space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full sun-gradient-circle text-white flex items-center justify-center shadow-amber-glow shrink-0">
+                <Gavel className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-warm-obsidian font-display tracking-tight">
+                    Official Bench Orders & Judgments
+                  </h4>
+                  <span className="px-2.5 py-0.5 rounded-pill text-[10px] font-bold bg-terracotta text-white shadow-xs">
+                    {orderDocs.length} Auto-Fetched
+                  </span>
+                </div>
+                <p className="text-xs text-warm-muted mt-0.5">
+                  Synchronized with official eCourts / High Court cause list records
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedFolder('05_Orders_and_Judgments')}
+                className={`px-3.5 py-1.5 rounded-pill text-xs font-semibold shadow-xs transition-all flex items-center gap-1.5 ${
+                  selectedFolder === '05_Orders_and_Judgments'
+                    ? 'bg-warm-obsidian text-white'
+                    : 'bg-white hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle'
+                }`}
+              >
+                <Filter className="w-3.5 h-3.5 text-terracotta" />
+                <span>Filter to Orders ({orderDocs.length})</span>
+              </button>
+
+              <button
+                onClick={() => setReadingOrder(orderDocs[0])}
+                className="px-3.5 py-1.5 rounded-pill bg-terracotta text-white hover:bg-terracotta/90 text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Read Latest Order</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Latest Order Preview */}
+          {orderDocs[0] && (
+            <div 
+              onClick={() => setReadingOrder(orderDocs[0])}
+              className="p-3.5 rounded-2xl bg-white/95 border border-terracotta/20 text-xs text-warm-obsidian cursor-pointer hover:border-terracotta transition-all shadow-xs"
+            >
+              <div className="flex items-center justify-between text-[11px] font-mono text-warm-muted mb-1">
+                <span className="font-bold text-warm-obsidian">{orderDocs[0].name}</span>
+                <span>Hearing: {orderDocs[0].hearingDate || 'Recent'}</span>
+              </div>
+              <p className="italic font-sans text-warm-graphite font-medium">
+                "{orderDocs[0].summary || orderDocs[0].orderText || targetCase?.lastOrder}"
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       
       {/* Top Filter & Search Bar */}
       <div className="glass-panel rounded-3xl p-4 sm:p-5 space-y-4">
@@ -142,6 +212,25 @@ export const DocumentVault = ({
           >
             All Folders ({caseDocs.length})
           </button>
+
+          {orderDocs.length > 0 && (
+            <button
+              onClick={() => setSelectedFolder('05_Orders_and_Judgments')}
+              className={`px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                selectedFolder === '05_Orders_and_Judgments'
+                  ? 'bg-terracotta text-white shadow-xs'
+                  : 'bg-terracotta-soft text-terracotta hover:bg-terracotta/20 border border-terracotta/30'
+              }`}
+            >
+              <Gavel className="w-3.5 h-3.5" />
+              <span>⚖️ Auto-Fetched Orders</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                selectedFolder === '05_Orders_and_Judgments' ? 'bg-white text-terracotta' : 'bg-terracotta text-white'
+              }`}>
+                {orderDocs.length}
+              </span>
+            </button>
+          )}
 
           {systemConfig.driveFolderTemplate?.map(f => {
             const count = caseDocs.filter(d => d.folder === f.name).length;
