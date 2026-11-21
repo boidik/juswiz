@@ -15,7 +15,11 @@ import {
   ChevronDown,
   Layers,
   FileText,
-  ArrowRight
+  ArrowRight,
+  Link2,
+  X,
+  Save,
+  CheckCircle2
 } from 'lucide-react';
 import { DocumentVault } from './DocumentVault';
 import { FileUploadModal } from './FileUploadModal';
@@ -32,7 +36,8 @@ export const CaseWorkspace = () => {
     documents, 
     tasks, 
     conferences,
-    updateTaskStatus
+    updateTaskStatus,
+    updateCaseDriveLink
   } = useApp();
 
   const [activeTab, setActiveTab] = useState('VAULT'); // 'VAULT' | 'TASKS' | 'CONFERENCES' | 'ORDERS'
@@ -43,6 +48,8 @@ export const CaseWorkspace = () => {
   const [isShareBriefOpen, setIsShareBriefOpen] = useState(false);
   const [isHearingDateOpen, setIsHearingDateOpen] = useState(false);
   const [isOrderFetcherOpen, setIsOrderFetcherOpen] = useState(false);
+  const [isDriveEditOpen, setIsDriveEditOpen] = useState(false);
+  const [customDriveInput, setCustomDriveInput] = useState('');
 
   if (!selectedCase) {
     return (
@@ -70,11 +77,28 @@ export const CaseWorkspace = () => {
 
   const { dayOfWeek, dayOfMonth } = formatEditorialDate(selectedCase.nextHearingDate);
 
+  const handleOpenDriveModal = () => {
+    setCustomDriveInput(selectedCase.driveFolderUrl || '');
+    setIsDriveEditOpen(true);
+  };
+
+  const handleSaveDriveLink = async (e) => {
+    e.preventDefault();
+    await updateCaseDriveLink(selectedCase.id, customDriveInput);
+    setIsDriveEditOpen(false);
+  };
+
+  const handleGenerateSearchLink = () => {
+    const safeQuery = encodeURIComponent(`${selectedCase.caseNumber} ${selectedCase.courtCode || ''}`);
+    const generatedUrl = `https://drive.google.com/drive/search?q=${safeQuery}`;
+    setCustomDriveInput(generatedUrl);
+  };
+
   return (
     <div className="space-y-6">
       
       {/* Top Case Hero Card (Pinterest Luxury Glass Aesthetic) */}
-      <div className="glass-panel-elevated rounded-4xl p-6 sm:p-7 relative overflow-hidden space-y-5">
+      <div className="glass-panel-elevated rounded-4xl p-5 sm:p-7 relative overflow-hidden space-y-5">
         
         {/* Amber Sunset Orb */}
         <div className="absolute top-0 right-0 w-44 h-44 rounded-full sun-gradient-circle opacity-75 blur-xs pointer-events-none -mr-12 -mt-12" />
@@ -124,9 +148,9 @@ export const CaseWorkspace = () => {
             </div>
           </div>
 
-          {/* Right Date Card (Pinterest "Thu 24th" Style) */}
-          <div className="relative z-10 flex items-center gap-3 self-start lg:self-auto shrink-0">
-            <div className="glass-panel rounded-3xl p-4 sm:p-5 text-left border border-white/90 shadow-glass min-w-[150px]">
+          {/* Right Date Card (Pinterest "Thu 24th" Style) & Google Drive Link */}
+          <div className="relative z-10 flex items-center gap-3 self-start lg:self-auto shrink-0 flex-wrap sm:flex-nowrap">
+            <div className="glass-panel rounded-3xl p-4 sm:p-5 text-left border border-white/90 shadow-glass min-w-[140px]">
               <span className="text-[10px] uppercase font-bold tracking-widest text-warm-muted block mb-1">
                 Next Listing
               </span>
@@ -143,17 +167,27 @@ export const CaseWorkspace = () => {
               </p>
             </div>
 
-            {selectedCase.driveFolderUrl && (
-              <a
-                href={selectedCase.driveFolderUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="w-12 h-12 rounded-3xl glass-panel border border-white/90 hover:bg-white flex items-center justify-center text-warm-obsidian transition-colors shadow-glass shrink-0"
-                title="Google Drive Case Directory"
+            {/* Google Drive Folder Buttons */}
+            <div className="flex flex-col gap-2">
+              {selectedCase.driveFolderUrl && (
+                <a
+                  href={selectedCase.driveFolderUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-12 h-12 rounded-3xl glass-panel border border-white/90 hover:bg-white flex items-center justify-center text-warm-obsidian transition-colors shadow-glass shrink-0"
+                  title="Open Google Drive Directory"
+                >
+                  <FolderOpen className="w-5 h-5 text-terracotta" />
+                </a>
+              )}
+              <button
+                onClick={handleOpenDriveModal}
+                className="w-12 h-10 rounded-2xl glass-panel border border-white/90 hover:bg-white flex items-center justify-center text-warm-graphite hover:text-warm-obsidian transition-colors shadow-glass shrink-0 text-[10px] font-bold"
+                title="Edit / Link Google Drive Folder"
               >
-                <FolderOpen className="w-5 h-5 text-terracotta" />
-              </a>
-            )}
+                <Link2 className="w-4 h-4 text-terracotta" />
+              </button>
+            </div>
           </div>
 
         </div>
@@ -179,7 +213,7 @@ export const CaseWorkspace = () => {
             onClick={() => setIsShareBriefOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
           >
-            <Share2 className="w-3.5 h-3.5 text-terracotta" /> Share Brief
+            <Share2 className="w-3.5 h-3.5 text-terracotta" /> Share Brief via Gmail
           </button>
 
           <button
@@ -199,90 +233,94 @@ export const CaseWorkspace = () => {
 
       </div>
 
-      {/* Workspace Navigation Sub-Tabs */}
-      <div className="flex border-b border-warm-borderSubtle space-x-2">
+      {/* Workspace Tabs */}
+      <div className="flex border-b border-warm-borderSubtle bg-white/30 backdrop-blur-md rounded-t-3xl overflow-x-auto no-scrollbar px-3 sm:px-6">
         <button
           onClick={() => setActiveTab('VAULT')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'VAULT'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'
           }`}
         >
-          <FolderOpen className="w-4 h-4" /> Document Vault ({caseDocs.length})
+          <FolderOpen className="w-4 h-4" />
+          <span>Case Document Vault ({caseDocs.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('TASKS')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'TASKS'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'
           }`}
         >
-          <CheckSquare className="w-4 h-4" /> Case Tasks ({caseTasks.length})
+          <CheckSquare className="w-4 h-4" />
+          <span>Assigned Tasks ({caseTasks.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('CONFERENCES')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'CONFERENCES'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'
           }`}
         >
-          <Video className="w-4 h-4" /> GMeet Conferences ({caseConfs.length})
+          <Video className="w-4 h-4" />
+          <span>GMeet Conferences ({caseConfs.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('ORDERS')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'ORDERS'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'
           }`}
         >
-          <Gavel className="w-4 h-4" /> Orders & Proceedings ({orderDocs.length})
+          <Gavel className="w-4 h-4" />
+          <span>Bench Orders & Judgments ({orderDocs.length})</span>
         </button>
       </div>
 
-      {/* Sub-Tab Content */}
+      {/* Tab Panels */}
       {activeTab === 'VAULT' && (
-        <DocumentVault
-          targetCaseId={selectedCase.id}
-          onOpenUpload={() => setIsUploadOpen(true)}
-          onOpenShareBrief={() => setIsShareBriefOpen(true)}
+        <DocumentVault 
+          caseId={selectedCase.id} 
+          driveFolderUrl={selectedCase.driveFolderUrl}
         />
       )}
 
       {activeTab === 'TASKS' && (
-        <div className="glass-panel rounded-3xl p-5 divide-y divide-warm-borderSubtle/60">
-          <div className="pb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-warm-obsidian font-display">Litigation Tasks for this Matter</h3>
-            <span className="text-xs text-warm-muted">{caseTasks.length} task(s) active</span>
+        <div className="glass-panel rounded-3xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-warm-obsidian font-display">Tasks Linked to {selectedCase.caseNumber}</h3>
+            <span className="text-xs text-warm-muted font-mono">{caseTasks.filter(t => t.status === 'COMPLETED').length}/{caseTasks.length} Done</span>
           </div>
 
           {caseTasks.length === 0 ? (
-            <p className="py-8 text-center text-xs text-warm-muted">No tasks assigned specifically to this matter.</p>
+            <p className="text-xs text-warm-muted py-8 text-center">No tasks assigned to this case yet.</p>
           ) : (
-            caseTasks.map(t => (
-              <div key={t.id} className="py-3.5 flex items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-warm-obsidian">{t.title}</span>
-                    <span className="text-[10px] bg-terracotta-soft text-terracotta px-2.5 py-0.5 rounded-pill font-medium">
-                      {t.category}
-                    </span>
+            <div className="space-y-2">
+              {caseTasks.map(t => (
+                <div key={t.id} className="p-4 bg-white/70 rounded-2xl border border-warm-borderSubtle flex items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded-pill text-[10px] font-bold ${
+                        t.priority === 'CRITICAL' ? 'bg-rose-100 text-rose-700' :
+                        t.priority === 'HIGH' ? 'bg-amber-100 text-amber-800' : 'bg-warm-sand text-warm-graphite'
+                      }`}>
+                        {t.priority}
+                      </span>
+                      <span className="text-xs font-bold text-warm-obsidian">{t.title}</span>
+                    </div>
+                    <p className="text-[11px] text-warm-muted mt-1">Due: {t.dueDate} • Category: {t.category}</p>
                   </div>
-                  <p className="text-xs text-warm-muted">{t.description}</p>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs font-mono text-warm-graphite">Due: {t.dueDate}</span>
                   <select
                     value={t.status}
                     onChange={(e) => updateTaskStatus(t.id, e.target.value)}
-                    className="capsule-input py-1 text-xs"
+                    className="capsule-input text-xs py-1"
                   >
                     <option value="TODO">To Do</option>
                     <option value="IN_PROGRESS">In Progress</option>
@@ -290,105 +328,165 @@ export const CaseWorkspace = () => {
                     <option value="COMPLETED">Completed</option>
                   </select>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       )}
 
       {activeTab === 'CONFERENCES' && (
-        <div className="glass-panel rounded-3xl p-5 divide-y divide-warm-borderSubtle/60">
-          <div className="pb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-warm-obsidian font-display">Scheduled Google Meet Briefings</h3>
+        <div className="glass-panel rounded-3xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-warm-obsidian font-display">Google Meet Consultations</h3>
             <button
               onClick={() => setIsGMeetOpen(true)}
-              className="capsule-btn-dark text-xs"
+              className="px-3.5 py-1.5 rounded-pill bg-terracotta text-white text-xs font-semibold flex items-center gap-1 shadow-xs hover:bg-terracotta/90"
             >
-              <span>New GMeet</span>
-              <div className="knob"><Video className="w-3.5 h-3.5 text-white" /></div>
+              <Video className="w-3.5 h-3.5" /> New Meet
             </button>
           </div>
 
           {caseConfs.length === 0 ? (
-            <p className="py-8 text-center text-xs text-warm-muted">No conferences scheduled yet.</p>
+            <p className="text-xs text-warm-muted py-8 text-center">No conferences scheduled for this matter.</p>
           ) : (
-            caseConfs.map(c => (
-              <div key={c.id} className="py-3.5 flex items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-warm-obsidian">{c.title}</span>
-                    <span className="text-[10px] bg-terracotta-soft text-terracotta px-2.5 py-0.5 rounded-pill font-semibold">
-                      {c.durationMinutes} mins
-                    </span>
+            <div className="space-y-2">
+              {caseConfs.map(c => (
+                <div key={c.id} className="p-4 bg-white/70 rounded-2xl border border-warm-borderSubtle flex items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-warm-obsidian">{c.title}</h4>
+                    <p className="text-[11px] text-warm-muted mt-0.5">
+                      {c.scheduledDate} at {c.scheduledTime} ({c.durationMinutes} mins)
+                    </p>
+                    <p className="text-[10px] text-warm-graphite mt-1">Attendees: {c.attendees?.join(', ')}</p>
                   </div>
-                  <p className="text-xs text-warm-muted">{c.agenda}</p>
-                  <p className="text-[11px] text-warm-muted font-mono">
-                    Host: {c.host} • Attendees: {c.attendees?.join(', ') || 'Team counsel'}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs font-mono text-warm-graphite">{c.date} at {c.time}</span>
                   <a
                     href={c.meetUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="capsule-btn-dark text-xs"
                   >
-                    <span>Join</span>
-                    <div className="knob"><ArrowRight className="w-3.5 h-3.5 text-white" /></div>
+                    <span>Join GMeet</span>
+                    <div className="knob"><Video className="w-3.5 h-3.5 text-white" /></div>
                   </a>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       )}
 
       {activeTab === 'ORDERS' && (
-        <div className="glass-panel rounded-3xl p-5 space-y-4">
+        <div className="glass-panel rounded-3xl p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-warm-obsidian font-display">Bench Orders & Proceedings Archive</h3>
-              <p className="text-xs text-warm-muted">Synced into Drive folder /05_Orders_and_Judgments</p>
-            </div>
+            <h3 className="text-sm font-bold text-warm-obsidian font-display">Bench Orders Repository</h3>
             <button
               onClick={() => setIsOrderFetcherOpen(true)}
-              className="capsule-btn-dark text-xs"
+              className="px-3.5 py-1.5 rounded-pill bg-terracotta text-white text-xs font-semibold flex items-center gap-1 shadow-xs hover:bg-terracotta/90"
             >
-              <span>Auto Fetch Order</span>
-              <div className="knob"><Cpu className="w-3.5 h-3.5 text-white" /></div>
+              <Cpu className="w-3.5 h-3.5" /> Fetch Live Order
             </button>
           </div>
 
-          <div className="p-4 bg-white/70 rounded-2xl border border-warm-borderSubtle text-xs">
-            <span className="font-bold text-warm-obsidian">Latest Bench Record:</span>
-            <p className="text-warm-graphite italic mt-1 leading-relaxed">
-              "{selectedCase.lastOrder}"
-            </p>
-          </div>
-
-          <div className="divide-y divide-warm-borderSubtle/60">
+          <div className="space-y-2">
             {orderDocs.map(o => (
-              <div key={o.id} className="py-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <FileText className="w-4 h-4 text-terracotta shrink-0" />
-                  <div>
-                    <p className="text-xs font-mono font-bold text-warm-obsidian">{o.name}</p>
-                    <p className="text-[11px] text-warm-muted">{o.uploadedBy} • {new Date(o.uploadedAt).toLocaleDateString()}</p>
-                  </div>
+              <div key={o.id} className="p-4 bg-white/70 rounded-2xl border border-warm-borderSubtle flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-mono font-bold text-warm-obsidian">{o.fileName}</p>
+                  <p className="text-[11px] text-warm-muted mt-0.5">Uploaded: {o.uploadedAt} • Size: {o.fileSize}</p>
                 </div>
 
                 <a
                   href={o.driveUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-1 rounded-pill border border-warm-borderSubtle text-warm-graphite text-xs hover:bg-white flex items-center gap-1 font-medium"
+                  className="px-3 py-1 rounded-pill border border-warm-borderSubtle text-warm-graphite text-xs hover:bg-white flex items-center gap-1 font-medium shadow-xs"
                 >
                   <ExternalLink className="w-3 h-3 text-terracotta" /> View Order
                 </a>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Google Drive Link Editor Modal */}
+      {isDriveEditOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/40 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="relative w-full max-w-lg glass-panel-elevated rounded-4xl border border-white/95 shadow-glass overflow-hidden p-6 sm:p-7 space-y-4">
+            <div className="flex items-center justify-between border-b border-warm-borderSubtle/60 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full sun-gradient-circle text-white flex items-center justify-center shadow-xs">
+                  <Link2 className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-warm-obsidian font-display">Link Case Google Drive</h3>
+                  <p className="text-[11px] text-warm-muted">{selectedCase.caseNumber}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDriveEditOpen(false)}
+                className="w-7 h-7 rounded-full bg-warm-sand/50 hover:bg-warm-sand flex items-center justify-center text-warm-graphite"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDriveLink} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
+                  Google Drive Folder URL
+                </label>
+                <input
+                  type="url"
+                  required
+                  value={customDriveInput}
+                  onChange={(e) => setCustomDriveInput(e.target.value)}
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  className="w-full capsule-input text-xs font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-warm-muted">
+                <span>Want an auto-generated Drive search link?</span>
+                <button
+                  type="button"
+                  onClick={handleGenerateSearchLink}
+                  className="text-terracotta font-semibold hover:underline"
+                >
+                  Generate Search URL
+                </button>
+              </div>
+
+              {customDriveInput && (
+                <div className="pt-1">
+                  <a
+                    href={customDriveInput}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-semibold text-terracotta hover:underline inline-flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Test opening this Drive link in new tab
+                  </a>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-warm-borderSubtle/60">
+                <button
+                  type="button"
+                  onClick={() => setIsDriveEditOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-warm-graphite hover:bg-white rounded-pill"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="capsule-btn-dark text-xs"
+                >
+                  <span>Save Drive Link</span>
+                  <div className="knob"><Save className="w-3.5 h-3.5 text-white" /></div>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

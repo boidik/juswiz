@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, CheckSquare, Calendar, User, AlertCircle, Plus } from 'lucide-react';
+import { X, CheckSquare, Calendar, User, AlertCircle, Plus, Briefcase, FileText } from 'lucide-react';
 
 export const TaskCreateModal = ({ isOpen, onClose }) => {
   const { cases, users, systemConfig, createTask } = useApp();
@@ -12,8 +12,8 @@ export const TaskCreateModal = ({ isOpen, onClose }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assignedTo, setAssignedTo] = useState([]);
-  const [category, setCategory] = useState(systemConfig.taskCategories[0] || 'Drafting');
-  const [priority, setPriority] = useState('HIGH');
+  const [category, setCategory] = useState(systemConfig.taskCategories?.[0] || 'Drafting - Writ / Plaint / Petition');
+  const [priority, setPriority] = useState(systemConfig.taskPriorities?.[0] || 'HIGH');
   const [dueDate, setDueDate] = useState(
     new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]
   );
@@ -28,15 +28,15 @@ export const TaskCreateModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!title) return;
+    if (!title.trim()) return;
 
     createTask({
       caseId: taskScope === 'CASE_LINKED' ? caseId : null,
       customCaseRef: taskScope === 'FIRM_LEVEL' ? customCaseRef : undefined,
       customCaseTitle: taskScope === 'FIRM_LEVEL' ? customCaseTitle : undefined,
-      title,
-      description,
-      assignedTo: assignedTo.length > 0 ? assignedTo : [users[0].id],
+      title: title.trim(),
+      description: description.trim(),
+      assignedTo: assignedTo.length > 0 ? assignedTo : [users[0]?.id].filter(Boolean),
       category,
       priority,
       dueDate
@@ -46,63 +46,71 @@ export const TaskCreateModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-      <div className="relative w-full max-w-2xl bg-white rounded-m3-2xl shadow-m3-3 border border-neutral-200 overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/40 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+      <div className="relative w-full max-w-2xl glass-panel-elevated rounded-4xl border border-white/95 shadow-[0_25px_60px_-15px_rgba(160,140,120,0.35)] overflow-hidden my-4 sm:my-8 max-h-[92vh] flex flex-col">
         
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-emerald-50/80 to-teal-50/40 border-b border-neutral-200 flex items-center justify-between">
+        <div className="px-6 sm:px-7 pt-6 pb-4 border-b border-warm-borderSubtle/60 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-m3-lg bg-emerald-600 text-white shadow-xs">
-              <CheckSquare className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-full sun-gradient-circle text-white flex items-center justify-center shadow-amber-glow shrink-0">
+              <CheckSquare className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-neutral-900">Delegate & Assign Litigation Task</h2>
-              <p className="text-xs text-neutral-500">
+              <h2 className="text-base sm:text-lg font-bold text-warm-obsidian font-display tracking-tight">
+                Delegate & Assign Litigation Task
+              </h2>
+              <p className="text-xs text-warm-muted mt-0.5">
                 Manager Admin Console • Assign case-specific or firm-level tasks to advocates & clerks
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-neutral-200/60 text-neutral-500 transition-colors"
+            className="w-8 h-8 rounded-full bg-warm-sand/50 hover:bg-warm-sand flex items-center justify-center text-warm-graphite transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4 overflow-y-auto flex-1">
           
           {/* Task Scope: Case-linked vs Standalone */}
-          <div className="p-3 bg-neutral-50 rounded-m3-lg border border-neutral-200">
-            <label className="block text-xs font-semibold text-neutral-700 mb-2">
+          <div className="p-3.5 bg-white/70 rounded-3xl border border-warm-borderSubtle space-y-2">
+            <label className="block text-xs font-bold text-warm-obsidian">
               Task Association Scope
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setTaskScope('CASE_LINKED')}
-                className={`p-2.5 rounded-m3-md text-xs font-medium text-left border transition-all ${
+                className={`p-3 rounded-2xl text-left text-xs transition-all border ${
                   taskScope === 'CASE_LINKED'
-                    ? 'bg-emerald-50 border-emerald-400 text-emerald-900 shadow-xs'
-                    : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-100'
+                    ? 'bg-white border-terracotta text-warm-obsidian shadow-xs ring-2 ring-terracotta/20 font-bold'
+                    : 'bg-warm-sand/40 border-warm-borderSubtle text-warm-muted hover:text-warm-obsidian'
                 }`}
               >
-                <div className="font-bold">Case-Linked Task</div>
-                <div className="text-[10px] text-neutral-500 mt-0.5">Tied to an active High Court, SCI, or Tribunal matter</div>
+                <div className="flex items-center gap-1.5 font-bold text-warm-obsidian">
+                  <Briefcase className="w-3.5 h-3.5 text-terracotta" />
+                  <span>Case-Linked Task</span>
+                </div>
+                <div className="text-[10px] text-warm-muted mt-0.5">Tied to an ongoing court or tribunal docket</div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setTaskScope('FIRM_LEVEL')}
-                className={`p-2.5 rounded-m3-md text-xs font-medium text-left border transition-all ${
+                className={`p-3 rounded-2xl text-left text-xs transition-all border ${
                   taskScope === 'FIRM_LEVEL'
-                    ? 'bg-emerald-50 border-emerald-400 text-emerald-900 shadow-xs'
-                    : 'bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-100'
+                    ? 'bg-white border-terracotta text-warm-obsidian shadow-xs ring-2 ring-terracotta/20 font-bold'
+                    : 'bg-warm-sand/40 border-warm-borderSubtle text-warm-muted hover:text-warm-obsidian'
                 }`}
               >
-                <div className="font-bold">Standalone / Administrative Task</div>
-                <div className="text-[10px] text-neutral-500 mt-0.5">Bar subscription, compliance, general office administrative action</div>
+                <div className="flex items-center gap-1.5 font-bold text-warm-obsidian">
+                  <FileText className="w-3.5 h-3.5 text-terracotta" />
+                  <span>Chambers Administrative</span>
+                </div>
+                <div className="text-[10px] text-warm-muted mt-0.5">Bar membership, office compliance, general research</div>
               </button>
             </div>
           </div>
@@ -110,13 +118,13 @@ export const TaskCreateModal = ({ isOpen, onClose }) => {
           {/* Conditional Case Selector */}
           {taskScope === 'CASE_LINKED' ? (
             <div>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                Select Ongoing Case *
+              <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
+                Select Ongoing Case Docket *
               </label>
               <select
                 value={caseId}
                 onChange={(e) => setCaseId(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full capsule-input text-xs"
               >
                 {cases.map(c => (
                   <option key={c.id} value={c.id}>
@@ -126,21 +134,21 @@ export const TaskCreateModal = ({ isOpen, onClose }) => {
               </select>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
                   Custom Task Reference / Code
                 </label>
                 <input
                   type="text"
                   value={customCaseRef}
                   onChange={(e) => setCustomCaseRef(e.target.value)}
-                  placeholder="e.g. FIRM-ADMIN-12"
-                  className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md"
+                  placeholder="e.g. CHAMBERS-ADMIN-04"
+                  className="w-full capsule-input text-xs font-mono"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
                   Task Heading / Project
                 </label>
                 <input
@@ -148,7 +156,7 @@ export const TaskCreateModal = ({ isOpen, onClose }) => {
                   value={customCaseTitle}
                   onChange={(e) => setCustomCaseTitle(e.target.value)}
                   placeholder="e.g. Bar Library Club Compliance"
-                  className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md"
+                  className="w-full capsule-input text-xs"
                 />
               </div>
             </div>
@@ -156,7 +164,7 @@ export const TaskCreateModal = ({ isOpen, onClose }) => {
 
           {/* Title */}
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1">
+            <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
               Task Action Item *
             </label>
             <input
@@ -165,117 +173,120 @@ export const TaskCreateModal = ({ isOpen, onClose }) => {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Draft Affidavit-in-Opposition focusing on limitation period..."
-              className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full capsule-input text-xs font-medium"
             />
           </div>
 
           {/* Category & Priority & Due Date */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                Category (From Admin Master)
+              <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
+                Category (From Custom Master)
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md"
+                className="w-full capsule-input text-xs"
               >
-                {systemConfig.taskCategories.map((cat, idx) => (
+                {(systemConfig.taskCategories || []).map((cat, idx) => (
                   <option key={idx} value={cat}>{cat}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">
+              <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
                 Priority Level
               </label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md"
+                className="w-full capsule-input text-xs font-bold"
               >
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High (Hearing Approaching)</option>
-                <option value="CRITICAL">Critical (Urgent Listing / Stay)</option>
+                {(systemConfig.taskPriorities || ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']).map((p, idx) => (
+                  <option key={idx} value={p}>{p}</option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                Deadline Date *
+              <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
+                Target Deadline *
               </label>
               <input
                 type="date"
                 required
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md"
+                className="w-full capsule-input text-xs font-mono"
               />
             </div>
           </div>
 
           {/* Multi-Person Assignment */}
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1.5 flex items-center justify-between">
-              <span>Engage Personnel (Select Multiple Advocates & Clerks) *</span>
-              <span className="text-[11px] text-neutral-500">{assignedTo.length} selected</span>
+            <label className="block text-xs font-semibold text-warm-graphite mb-1.5 flex items-center justify-between">
+              <span>Engage Advocates & Clerks (Multi-Select) *</span>
+              <span className="text-[11px] text-terracotta font-semibold">{assignedTo.length} selected</span>
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {users.map(u => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => toggleAssignee(u.id)}
-                  className={`p-2 rounded-m3-md text-left text-xs border transition-all flex items-center gap-2 ${
-                    assignedTo.includes(u.id)
-                      ? 'bg-emerald-50 border-emerald-400 text-emerald-900 shadow-xs'
-                      : 'bg-neutral-50 border-neutral-200 text-neutral-600 hover:bg-neutral-100'
-                  }`}
-                >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                    assignedTo.includes(u.id) ? 'bg-emerald-600 text-white' : 'bg-neutral-200 text-neutral-700'
-                  }`}>
-                    {u.name.charAt(0)}
-                  </div>
-                  <div className="truncate">
-                    <p className="font-semibold truncate">{u.name}</p>
-                    <p className="text-[9px] text-neutral-500 uppercase">{u.role.replace('_', ' ')}</p>
-                  </div>
-                </button>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {users.map(u => {
+                const isSelected = assignedTo.includes(u.id);
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => toggleAssignee(u.id)}
+                    className={`p-2.5 rounded-2xl text-left text-xs border transition-all flex items-center gap-2.5 ${
+                      isSelected
+                        ? 'bg-white border-terracotta text-warm-obsidian shadow-xs ring-2 ring-terracotta/20 font-bold'
+                        : 'bg-white/60 border-warm-borderSubtle text-warm-graphite hover:bg-white'
+                    }`}
+                  >
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                      isSelected ? 'sun-gradient-circle text-white shadow-xs' : 'bg-warm-sand text-warm-graphite'
+                    }`}>
+                      {u.name.charAt(0)}
+                    </div>
+                    <div className="truncate min-w-0">
+                      <p className="font-semibold text-warm-obsidian truncate">{u.name}</p>
+                      <p className="text-[9px] text-warm-muted uppercase tracking-wider">{u.role?.replace('_', ' ')}</p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Detailed Instructions */}
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1">
-              Instructions & Research Directives
+            <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
+              Directives, Precedents & Legal Scope
             </label>
             <textarea
               rows="3"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Specify precedents to research, key annexures, or conference requirements..."
-              className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            ></textarea>
+              placeholder="Specify precedents, key annexures, prayer amendments, or conference notes..."
+              className="w-full p-3 rounded-3xl border border-warm-borderSubtle bg-white/80 text-xs text-warm-obsidian focus:outline-none focus:ring-2 focus:ring-terracotta/20 leading-relaxed"
+            />
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-neutral-200">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-warm-borderSubtle/60 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 rounded-m3-full"
+              className="px-4 py-2 text-xs font-semibold text-warm-graphite hover:bg-white rounded-pill transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-m3-full shadow-sm flex items-center gap-1.5 transition-all"
+              className="capsule-btn-dark text-xs"
             >
-              <Plus className="w-4 h-4" /> Delegate Task
+              <span>Delegate Task</span>
+              <div className="knob"><Plus className="w-3.5 h-3.5 text-white" /></div>
             </button>
           </div>
 

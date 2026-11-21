@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, FolderPlus, CheckCircle2, ShieldAlert, Sparkles, Building2, User, FileText } from 'lucide-react';
+import { X, FolderPlus, CheckCircle2, Building2, User, Link2, ArrowRight } from 'lucide-react';
 
 export const CaseRegistrationModal = ({ isOpen, onClose }) => {
   const { systemConfig, users, createCase } = useApp();
 
   const [caseNumber, setCaseNumber] = useState('');
   const [title, setTitle] = useState('');
-  const [courtCode, setCourtCode] = useState(systemConfig.courts[0]?.code || 'CAL_HC_AS');
+  const [courtCode, setCourtCode] = useState((systemConfig.courts || [])[0]?.code || 'CAL_HC_AS');
   const [bench, setBench] = useState('');
-  const [caseType, setCaseType] = useState(systemConfig.caseTypes[0] || 'WPA');
+  const [caseType, setCaseType] = useState((systemConfig.caseTypes || [])[0] || 'WPA');
+  const [stage, setStage] = useState((systemConfig.caseStages || [])[0] || 'Initial Pleadings / Registration');
   const [cnrNumber, setCnrNumber] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
@@ -20,6 +21,7 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
   const [assignedStaff, setAssignedStaff] = useState([]);
   const [urgency, setUrgency] = useState('MEDIUM');
   const [briefSummary, setBriefSummary] = useState('');
+  const [driveFolderUrl, setDriveFolderUrl] = useState('');
   const [isProvisioningDrive, setIsProvisioningDrive] = useState(false);
   const [provisionSuccess, setProvisionSuccess] = useState(false);
 
@@ -29,14 +31,14 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
     e.preventDefault();
     setIsProvisioningDrive(true);
 
-    // Simulate Google Drive folder creation based on admin templates
-    setTimeout(() => {
-      createCase({
+    setTimeout(async () => {
+      await createCase({
         caseNumber,
         title,
         courtCode,
         bench,
         caseType,
+        stage,
         cnrNumber,
         clientName,
         clientEmail,
@@ -46,7 +48,8 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
         leadCounsel,
         assignedStaff,
         urgency,
-        briefSummary
+        briefSummary,
+        driveFolderUrl
       });
 
       setIsProvisioningDrive(false);
@@ -55,8 +58,8 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
       setTimeout(() => {
         setProvisionSuccess(false);
         onClose();
-      }, 1500);
-    }, 1000);
+      }, 1400);
+    }, 800);
   };
 
   const toggleStaff = (userId) => {
@@ -66,140 +69,197 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-      <div className="relative w-full max-w-3xl bg-white rounded-m3-2xl shadow-m3-3 border border-neutral-200 overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/40 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+      <div className="relative w-full max-w-3xl glass-panel-elevated rounded-4xl border border-white/95 shadow-[0_25px_60px_-15px_rgba(160,140,120,0.35)] overflow-hidden my-4 sm:my-8 max-h-[92vh] flex flex-col">
         
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-blue-50/80 to-indigo-50/40 border-b border-neutral-200 flex items-center justify-between">
+        <div className="px-5 sm:px-7 pt-5 sm:pt-6 pb-4 border-b border-warm-borderSubtle/60 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-m3-lg bg-material-primary text-white shadow-sm">
-              <FolderPlus className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-full sun-gradient-circle text-white flex items-center justify-center shadow-amber-glow shrink-0">
+              <FolderPlus className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-neutral-900">Register Case & Provision Google Drive</h2>
-              <p className="text-xs text-neutral-500">
-                Software Admin Console • Automatically provisions cloud directories according to firm taxonomy
+              <h2 className="text-base sm:text-lg font-bold text-warm-obsidian font-display tracking-tight">
+                Register Case Docket & Link Google Drive
+              </h2>
+              <p className="text-xs text-warm-muted mt-0.5">
+                Software Admin • Provisions case records with verified cloud storage links
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-neutral-200/60 text-neutral-500 transition-colors"
+            className="w-8 h-8 rounded-full bg-warm-sand/50 hover:bg-warm-sand flex items-center justify-center text-warm-graphite transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="p-5 sm:p-7 space-y-4 overflow-y-auto flex-1">
           {provisionSuccess ? (
             <div className="py-12 text-center space-y-3">
-              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto animate-bounce">
+              <div className="w-16 h-16 sun-gradient-circle text-white rounded-full flex items-center justify-center mx-auto shadow-amber-glow animate-bounce">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
-              <h3 className="text-lg font-bold text-neutral-900">Case Registered Successfully!</h3>
-              <p className="text-xs text-neutral-600 max-w-md mx-auto">
-                Google Drive folder hierarchy provisioned with all 6 categorized subdirectories. Case indexed in Master Litigation Board.
+              <h3 className="text-lg font-bold text-warm-obsidian font-display">Case Registered in Firebase!</h3>
+              <p className="text-xs text-warm-muted max-w-md mx-auto">
+                Matter indexed and linked to Google Drive. Visible in Master Cases board and assigned staff consoles.
               </p>
             </div>
           ) : (
             <>
-              {/* Primary Case Identification */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Primary Case Identifiers */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Case Number / Filing Reference *
+                  <label className="block text-xs font-semibold text-warm-graphite mb-1">
+                    Case Number / Filing Ref *
                   </label>
                   <input
                     type="text"
                     required
                     value={caseNumber}
                     onChange={(e) => setCaseNumber(e.target.value)}
-                    placeholder="e.g. WPA/18920/2026 or CS/240/2026"
-                    className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-material-primary"
+                    placeholder="e.g. WPA/14820/2026 or CS/412/2026"
+                    className="w-full capsule-input text-xs font-mono font-semibold"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Forum / Adjudicating Body *
+                  <label className="block text-xs font-semibold text-warm-graphite mb-1">
+                    Forum / Adjudicating Body (All Future Added Forums Included) *
                   </label>
                   <select
                     value={courtCode}
                     onChange={(e) => setCourtCode(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-material-primary"
+                    className="w-full capsule-input text-xs font-medium"
                   >
-                    {systemConfig.courts.map(c => (
-                      <option key={c.id} value={c.code}>{c.name}</option>
+                    {(systemConfig.courts || []).map(c => (
+                      <option key={c.id || c.code} value={c.code}>{c.name}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* Case Title */}
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Case Title (Petitioner vs Respondent) *
+                <label className="block text-xs font-semibold text-warm-graphite mb-1">
+                  Matter Title (Petitioner vs Respondent) *
                 </label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. M/s Bengal Tea Estates Ltd vs. Commissioner of Commercial Taxes"
-                  className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-material-primary"
+                  placeholder="e.g. M/s Bengal Infra Corp vs. State of West Bengal & Ors."
+                  className="w-full capsule-input text-xs font-semibold"
                 />
               </div>
 
               {/* Court Details */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Case Type / Classification
+                  <label className="block text-xs font-semibold text-warm-graphite mb-1">
+                    Classification / Type
                   </label>
                   <select
                     value={caseType}
                     onChange={(e) => setCaseType(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-material-primary"
+                    className="w-full capsule-input text-xs"
                   >
-                    {systemConfig.caseTypes.map((ct, idx) => (
+                    {(systemConfig.caseTypes || []).map((ct, idx) => (
                       <option key={idx} value={ct}>{ct}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-warm-graphite mb-1">
                     Bench / Court Room
                   </label>
                   <input
                     type="text"
                     value={bench}
                     onChange={(e) => setBench(e.target.value)}
-                    placeholder="e.g. Division Bench (Court 11)"
-                    className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-material-primary"
+                    placeholder="e.g. Single Bench (Court 13)"
+                    className="w-full capsule-input text-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-warm-graphite mb-1">
                     eCourts CNR / Diary Number
                   </label>
                   <input
                     type="text"
                     value={cnrNumber}
                     onChange={(e) => setCnrNumber(e.target.value)}
-                    placeholder="e.g. WBHC01-018920-2026"
-                    className="w-full px-3 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-material-primary"
+                    placeholder="e.g. WBHC01-014820-2026"
+                    className="w-full capsule-input text-xs font-mono"
                   />
                 </div>
               </div>
 
-              {/* Client & Opposite Party Details */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 bg-neutral-50 rounded-m3-lg border border-neutral-200">
+              {/* Stage & Urgency */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-warm-graphite mb-1">
+                    Litigation Stage (From Custom Presets)
+                  </label>
+                  <select
+                    value={stage}
+                    onChange={(e) => setStage(e.target.value)}
+                    className="w-full capsule-input text-xs"
+                  >
+                    {(systemConfig.caseStages || []).map((stg, idx) => (
+                      <option key={idx} value={stg}>{stg}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-warm-graphite mb-1">
+                    Urgency Priority
+                  </label>
+                  <select
+                    value={urgency}
+                    onChange={(e) => setUrgency(e.target.value)}
+                    className="w-full capsule-input text-xs"
+                  >
+                    {(systemConfig.caseUrgencies || [
+                      { key: 'CRITICAL', label: 'Critical (Stay / Injunction / Ad-Interim)' },
+                      { key: 'HIGH', label: 'High Priority (Listing Scheduled)' },
+                      { key: 'MEDIUM', label: 'Standard Litigation Cadence' },
+                      { key: 'LOW', label: 'Routine / Periodic Review' }
+                    ]).map((urg, idx) => (
+                      <option key={idx} value={urg.key || urg}>{urg.label || urg.key || urg}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Google Drive Link Explicit Config */}
+              <div className="p-4 bg-white/80 rounded-3xl border border-warm-borderSubtle space-y-2">
+                <label className="block text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5 text-terracotta" />
+                  Google Drive Folder Link (Verified URL)
+                </label>
+                <input
+                  type="url"
+                  value={driveFolderUrl}
+                  onChange={(e) => setDriveFolderUrl(e.target.value)}
+                  placeholder="https://drive.google.com/drive/folders/YOUR_FOLDER_ID (Leave blank to use Drive search query)"
+                  className="w-full capsule-input text-xs font-mono"
+                />
+                <p className="text-[11px] text-warm-muted">
+                  * If left blank, JurisFlow will generate a working search link that opens your Drive searching for this case number.
+                </p>
+              </div>
+
+              {/* Client & Opposite Party Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white/70 rounded-3xl border border-warm-borderSubtle">
                 <div className="space-y-2">
-                  <p className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-blue-600" /> Client Information
+                  <p className="text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-terracotta" /> Client Information
                   </p>
                   <input
                     type="text"
@@ -207,27 +267,27 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
                     placeholder="Client Name / Corporation *"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-neutral-300 rounded-m3-sm"
+                    className="w-full capsule-input text-xs"
                   />
                   <input
                     type="email"
                     value={clientEmail}
                     onChange={(e) => setClientEmail(e.target.value)}
                     placeholder="Client Contact Email"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-neutral-300 rounded-m3-sm"
+                    className="w-full capsule-input text-xs"
                   />
                   <input
                     type="tel"
                     value={clientPhone}
                     onChange={(e) => setClientPhone(e.target.value)}
                     placeholder="Client Phone / WhatsApp"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-neutral-300 rounded-m3-sm"
+                    className="w-full capsule-input text-xs"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-purple-600" /> Opposite Party & Counsel
+                  <p className="text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-warm-graphite" /> Opposite Party & Counsel
                   </p>
                   <input
                     type="text"
@@ -235,29 +295,29 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
                     value={oppositeParty}
                     onChange={(e) => setOppositeParty(e.target.value)}
                     placeholder="Opposite Party / State Department *"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-neutral-300 rounded-m3-sm"
+                    className="w-full capsule-input text-xs"
                   />
                   <input
                     type="text"
                     value={seniorAdvocate}
                     onChange={(e) => setSeniorAdvocate(e.target.value)}
                     placeholder="Designated Senior Advocate (if briefed)"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-neutral-300 rounded-m3-sm"
+                    className="w-full capsule-input text-xs"
                   />
                   <input
                     type="text"
                     value={leadCounsel}
                     onChange={(e) => setLeadCounsel(e.target.value)}
                     placeholder="Lead Associate / Arguing Counsel"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-neutral-300 rounded-m3-sm"
+                    className="w-full capsule-input text-xs"
                   />
                 </div>
               </div>
 
               {/* Staff Assignment */}
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                  Assign Litigation Staff (Advocates & Clerks)
+                <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
+                  Assign Litigation Staff (Visible in their respective Staff Consoles)
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {users.map(u => (
@@ -265,13 +325,13 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
                       key={u.id}
                       type="button"
                       onClick={() => toggleStaff(u.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      className={`px-3.5 py-1.5 rounded-pill text-xs font-semibold border transition-all ${
                         assignedStaff.includes(u.id)
-                          ? 'bg-blue-100 text-blue-800 border-blue-300 shadow-xs'
-                          : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100'
+                          ? 'bg-warm-obsidian text-white border-warm-obsidian shadow-xs'
+                          : 'bg-white/80 text-warm-graphite border-warm-borderSubtle hover:bg-white'
                       }`}
                     >
-                      {u.name} ({u.role.replace('_', ' ')})
+                      {u.name} ({u.role?.replace('_', ' ') || 'Staff'})
                     </button>
                   ))}
                 </div>
@@ -279,55 +339,34 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
 
               {/* Brief Summary */}
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Brief Synopsis & Core Legal Issues
+                <label className="block text-xs font-semibold text-warm-graphite mb-1">
+                  Brief Synopsis of Case
                 </label>
                 <textarea
                   rows="2"
                   value={briefSummary}
                   onChange={(e) => setBriefSummary(e.target.value)}
-                  placeholder="Outline the core statutory violations, interim prayers sought, and status of notices..."
-                  className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-material-primary"
+                  placeholder="Summary of prayers, interim reliefs, and main arguments..."
+                  className="w-full rounded-2xl p-3 text-xs bg-white/80 border border-warm-borderSubtle focus:outline-none focus:border-terracotta"
                 ></textarea>
               </div>
 
-              {/* Automated Google Drive Directory Preview */}
-              <div className="p-3 bg-blue-50/60 rounded-m3-lg border border-blue-200 text-xs">
-                <p className="font-semibold text-blue-900 flex items-center gap-1.5 mb-1.5">
-                  <FolderPlus className="w-4 h-4 text-blue-600" /> Automated Google Drive Hierarchy Provisioning
-                </p>
-                <div className="text-[11px] text-blue-800 font-mono space-y-0.5 pl-2 border-l-2 border-blue-300">
-                  <p>📁 /LexChambers Litigations/{courtCode}_{caseNumber ? caseNumber.replace(/[\/\s]/g, '_') : 'CASE'}/</p>
-                  {systemConfig.driveFolderTemplate.map(f => (
-                    <p key={f.id} className="pl-4 text-neutral-600">├── 📁 {f.name}</p>
-                  ))}
-                </div>
-              </div>
-
               {/* Actions */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-neutral-200">
+              <div className="flex items-center justify-between pt-3 border-t border-warm-borderSubtle/60 shrink-0">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 rounded-m3-full"
+                  className="text-xs text-warm-muted hover:text-warm-obsidian font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isProvisioningDrive}
-                  className="px-5 py-2.5 bg-material-primary hover:bg-blue-700 text-white text-xs font-medium rounded-m3-full shadow-sm flex items-center gap-2 transition-all disabled:opacity-50"
+                  className="capsule-btn-dark text-xs disabled:opacity-50"
                 >
-                  {isProvisioningDrive ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Provisioning Google Drive...
-                    </>
-                  ) : (
-                    <>
-                      Register Case & Create Folders
-                    </>
-                  )}
+                  <span>{isProvisioningDrive ? 'Registering...' : 'Register Matter & Save'}</span>
+                  <div className="knob"><ArrowRight className="w-3.5 h-3.5 text-white" /></div>
                 </button>
               </div>
             </>

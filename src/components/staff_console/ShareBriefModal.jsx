@@ -1,25 +1,34 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Send, Mail, Link2, Copy, Check, FileText, CheckCircle2, ArrowRight } from 'lucide-react';
+import { X, Send, Mail, Link2, Copy, Check, FileText, CheckCircle2, ArrowRight, ExternalLink } from 'lucide-react';
 
 export const ShareBriefModal = ({ isOpen, onClose, targetCase, caseDocuments }) => {
-  const { showToast, currentUser } = useApp();
+  const { showToast, currentUser, systemConfig } = useApp();
 
   const [recipientRole, setRecipientRole] = useState('Senior Advocate');
   const [recipientEmail, setRecipientEmail] = useState(
-    targetCase?.seniorAdvocate?.includes('@') ? targetCase.seniorAdvocate : targetCase?.clientEmail || 'senior.counsel@calbar.in'
+    targetCase?.seniorAdvocate?.includes('@') ? targetCase.seniorAdvocate : targetCase?.clientEmail || 'senior.counsel@bar.in'
   );
   const [selectedDocIds, setSelectedDocIds] = useState(
-    caseDocuments.map(d => d.id)
+    (caseDocuments || []).map(d => d.id)
   );
 
-  const [subject, setSubject] = useState(
-    `Brief for Consultation & Opinion: ${targetCase?.caseNumber} (${targetCase?.title}) before ${targetCase?.courtName}`
-  );
+  // Use dynamic template from system config
+  const defaultSubject = (systemConfig.emailTemplates?.subjectTemplate || "Brief for Consultation: {case_number} ({case_title}) before {court_name}")
+    .replace('{case_number}', targetCase?.caseNumber || '')
+    .replace('{case_title}', targetCase?.title || '')
+    .replace('{court_name}', targetCase?.courtName || '');
 
-  const [mailBody, setMailBody] = useState(
-    `Respected Senior Counsel,\n\nPlease find attached the comprehensive litigation brief and index of relevant pleadings in the above-captioned matter scheduled for hearing on ${targetCase?.nextHearingDate || 'the upcoming cause list'} before ${targetCase?.bench || 'the Hon\'ble Bench'}.\n\nKey documents enclosed:\n- Writ Petition & Stamped Court Filings\n- Latest Interim Bench Order\n- Chronological List of Dates and Statutory Points\n\nGoogle Drive Secure Case Bundle Access Link:\n${targetCase?.driveFolderUrl}\n\nPlease let us know your availability for a pre-hearing briefing conference on GMeet.\n\nWarm regards,\n${currentUser?.name || 'Litigation Counsel'}\n${currentUser?.designation || 'Associate'}`
-  );
+  const [subject, setSubject] = useState(defaultSubject);
+
+  const defaultBody = (systemConfig.emailTemplates?.bodyTemplate || `Respected Senior Counsel / Client,\n\nPlease find enclosed the litigation brief and indexed pleadings in the matter scheduled for hearing on {next_date} before {bench_name}.\n\nGoogle Drive Case Dossier Access Link:\n{drive_link}\n\nPlease let us know your availability for a pre-hearing briefing conference on Google Meet.\n\nWarm regards,\n{lead_counsel}\n{firm_name}`)
+    .replace('{next_date}', targetCase?.nextHearingDate || 'the upcoming cause list')
+    .replace('{bench_name}', targetCase?.bench || 'the Hon\'ble Bench')
+    .replace('{drive_link}', targetCase?.driveFolderUrl || 'Google Drive Folder')
+    .replace('{lead_counsel}', currentUser?.name || targetCase?.leadCounsel || 'Litigation Counsel')
+    .replace('{firm_name}', systemConfig.firmBranding?.firmName || 'JurisFlow Practice');
+
+  const [mailBody, setMailBody] = useState(defaultBody);
 
   const [isSent, setIsSent] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -32,10 +41,38 @@ export const ShareBriefModal = ({ isOpen, onClose, targetCase, caseDocuments }) 
     );
   };
 
-  const handleSendMail = (e) => {
+  // Build Real Gmail Web Compose URL
+  const buildGmailComposeUrl = () => {
+    const baseUrl = "https://mail.google.com/mail/?view=cm&fs=1";
+    const toParam = `&to=${encodeURIComponent(recipientEmail)}`;
+    const suParam = `&su=${encodeURIComponent(subject)}`;
+    const bodyParam = `&body=${encodeURIComponent(mailBody)}`;
+    return `${baseUrl}${toParam}${suParam}${bodyParam}`;
+  };
+
+  // Build Native Mailto URL
+  const buildMailtoUrl = () => {
+    return `mailto:${recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(mailBody)}`;
+  };
+
+  const handleSendViaGmail = (e) => {
     e.preventDefault();
+    if (!recipientEmail) {
+      showToast('Please specify a recipient email address.', 'error');
+      return;
+    }
+
+    const gmailUrl = buildGmailComposeUrl();
+    
+    // Open Gmail web composer directly in new tab
+    const newWindow = window.open(gmailUrl, '_blank');
+    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+      // Fallback to mailto if popup blocker triggered
+      window.location.href = buildMailtoUrl();
+    }
+
     setIsSent(true);
-    showToast(`Brief package dispatched via Gmail to ${recipientEmail}!`);
+    showToast(`Gmail composer opened with pre-filled case brief for ${recipientEmail}!`);
     setTimeout(() => {
       setIsSent(false);
       onClose();
@@ -43,25 +80,25 @@ export const ShareBriefModal = ({ isOpen, onClose, targetCase, caseDocuments }) 
   };
 
   const handleCopyLink = () => {
-    const bundleLink = `${targetCase?.driveFolderUrl}?brief_auth=token_${Date.now()}`;
+    const bundleLink = targetCase?.driveFolderUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(targetCase?.caseNumber || '')}`;
     navigator.clipboard.writeText(bundleLink);
     setCopiedLink(true);
-    showToast('Secure Google Drive case brief link copied!');
+    showToast('Google Drive case brief link copied to clipboard!');
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/40 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-      <div className="relative w-full max-w-2xl glass-panel-elevated rounded-4xl border border-white/95 shadow-[0_25px_60px_-15px_rgba(160,140,120,0.35)] overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/40 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+      <div className="relative w-full max-w-2xl glass-panel-elevated rounded-4xl border border-white/95 shadow-[0_25px_60px_-15px_rgba(160,140,120,0.35)] overflow-hidden my-4 sm:my-8 max-h-[92vh] flex flex-col">
         
         {/* Header */}
-        <div className="px-7 pt-6 pb-4 border-b border-warm-borderSubtle/60 flex items-center justify-between">
+        <div className="px-5 sm:px-7 pt-5 sm:pt-6 pb-4 border-b border-warm-borderSubtle/60 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-warm-obsidian font-display tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-warm-obsidian font-display tracking-tight">
               Share Case Brief & Pleadings
             </h2>
             <p className="text-xs text-warm-muted mt-0.5">
-              Bundle selective Drive files and dispatch via Gmail or copyable link
+              Dispatches directly via Google Gmail Web, Mailto, or Google Drive Link
             </p>
           </div>
           <button
@@ -73,7 +110,7 @@ export const ShareBriefModal = ({ isOpen, onClose, targetCase, caseDocuments }) 
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSendMail} className="p-7 space-y-4">
+        <form onSubmit={handleSendViaGmail} className="p-5 sm:p-7 space-y-4 overflow-y-auto flex-1">
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
@@ -101,6 +138,7 @@ export const ShareBriefModal = ({ isOpen, onClose, targetCase, caseDocuments }) 
                 required
                 value={recipientEmail}
                 onChange={(e) => setRecipientEmail(e.target.value)}
+                placeholder="senior.counsel@bar.in"
                 className="w-full capsule-input text-xs font-medium"
               />
             </div>
@@ -110,34 +148,38 @@ export const ShareBriefModal = ({ isOpen, onClose, targetCase, caseDocuments }) 
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-warm-graphite">
-                Select Particular Files to Bundle into Brief ({selectedDocIds.length} of {caseDocuments.length})
+                Select Particular Files to Bundle into Brief ({selectedDocIds.length} of {(caseDocuments || []).length})
               </label>
-              <span className="text-[11px] text-warm-muted">Direct from Google Drive</span>
+              <span className="text-[11px] text-warm-muted">From Case Drive</span>
             </div>
 
-            <div className="max-h-36 overflow-y-auto border border-warm-borderSubtle rounded-2xl divide-y divide-warm-borderSubtle/50 bg-white/60 p-1">
-              {caseDocuments.map(d => (
-                <label
-                  key={d.id}
-                  className="flex items-center gap-2 p-2 hover:bg-white rounded-xl cursor-pointer transition-colors text-xs"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedDocIds.includes(d.id)}
-                    onChange={() => toggleDoc(d.id)}
-                    className="w-3.5 h-3.5 text-terracotta rounded accent-terracotta"
-                  />
-                  <FileText className="w-3.5 h-3.5 text-warm-muted shrink-0" />
-                  <span className="font-mono text-warm-obsidian truncate flex-1">{d.name}</span>
-                  <span className="text-[10px] text-warm-muted shrink-0">{d.category}</span>
-                </label>
-              ))}
+            <div className="max-h-32 overflow-y-auto border border-warm-borderSubtle rounded-2xl divide-y divide-warm-borderSubtle/50 bg-white/60 p-1">
+              {(caseDocuments || []).length === 0 ? (
+                <p className="p-3 text-center text-xs text-warm-muted">No documents uploaded to this case yet.</p>
+              ) : (
+                caseDocuments.map(d => (
+                  <label
+                    key={d.id}
+                    className="flex items-center gap-2 p-2 hover:bg-white rounded-xl cursor-pointer transition-colors text-xs"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedDocIds.includes(d.id)}
+                      onChange={() => toggleDoc(d.id)}
+                      className="w-3.5 h-3.5 text-terracotta rounded accent-terracotta"
+                    />
+                    <FileText className="w-3.5 h-3.5 text-warm-muted shrink-0" />
+                    <span className="font-mono text-warm-obsidian truncate flex-1">{d.name}</span>
+                    <span className="text-[10px] text-warm-muted shrink-0">{d.category}</span>
+                  </label>
+                ))
+              )}
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-warm-graphite mb-1">
-              Email Subject Line (Editable at All Times) *
+              Email Subject Line (Fully Editable) *
             </label>
             <input
               type="text"
@@ -150,10 +192,10 @@ export const ShareBriefModal = ({ isOpen, onClose, targetCase, caseDocuments }) 
 
           <div>
             <label className="block text-xs font-semibold text-warm-graphite mb-1">
-              Email Message Body (Editable at All Times) *
+              Email Message Body (Fully Editable) *
             </label>
             <textarea
-              rows="5"
+              rows="4"
               required
               value={mailBody}
               onChange={(e) => setMailBody(e.target.value)}
@@ -162,32 +204,32 @@ export const ShareBriefModal = ({ isOpen, onClose, targetCase, caseDocuments }) 
           </div>
 
           {/* Actions */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-warm-borderSubtle/60">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-warm-borderSubtle/60 shrink-0">
             <button
               type="button"
               onClick={handleCopyLink}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-pill bg-white hover:bg-warm-sand/40 border border-warm-borderSubtle text-xs font-medium text-warm-graphite transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-pill bg-white hover:bg-warm-sand/40 border border-warm-borderSubtle text-xs font-medium text-warm-graphite transition-colors"
             >
               {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Link2 className="w-3.5 h-3.5 text-terracotta" />}
-              {copiedLink ? 'Link Copied!' : 'Copy Drive Share Link'}
+              {copiedLink ? 'Link Copied!' : 'Copy Drive Link'}
             </button>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="text-xs text-warm-muted hover:text-warm-obsidian font-medium px-3"
+              <a
+                href={buildMailtoUrl()}
+                className="inline-flex items-center gap-1 px-3 py-2 rounded-pill border border-warm-borderSubtle hover:bg-white text-xs font-medium text-warm-graphite transition-colors"
+                title="Send using default desktop mail app"
               >
-                Cancel
-              </button>
-              
+                <Mail className="w-3.5 h-3.5" /> Mail App
+              </a>
+
               <button
                 type="submit"
                 disabled={isSent}
                 className="capsule-btn-dark text-xs disabled:opacity-50"
               >
-                <span>{isSent ? 'Dispatched' : 'Dispatch via Gmail'}</span>
-                <div className="knob"><ArrowRight className="w-3.5 h-3.5 text-white" /></div>
+                <span>{isSent ? 'Dispatched' : 'Open in Gmail Web'}</span>
+                <div className="knob"><ExternalLink className="w-3.5 h-3.5 text-white" /></div>
               </button>
             </div>
           </div>

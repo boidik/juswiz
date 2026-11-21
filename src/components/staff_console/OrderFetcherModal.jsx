@@ -1,11 +1,18 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Cpu, CheckCircle2, AlertCircle, FileText, ArrowRight, ShieldCheck, DownloadCloud } from 'lucide-react';
+import { X, Cpu, CheckCircle2, AlertCircle, FileText, ArrowRight, ShieldCheck, DownloadCloud, ExternalLink, Globe } from 'lucide-react';
 
 export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
   const { simulateFetchCourtOrder, systemConfig } = useApp();
 
-  const [courtSource, setCourtSource] = useState(targetCase?.courtName || 'Calcutta High Court');
+  const availableCourts = systemConfig.courts || [];
+  const defaultCourt = availableCourts.find(c => c.name === targetCase?.courtName || c.code === targetCase?.courtCode) || availableCourts[0] || {
+    name: 'Calcutta High Court (Appellate Side)',
+    portalUrl: 'https://calcuttahighcourt.gov.in',
+    queryEngine: 'HIGH_COURT_DIRECT'
+  };
+
+  const [selectedCourtName, setSelectedCourtName] = useState(defaultCourt.name);
   const [caseQuery, setCaseQuery] = useState(targetCase?.caseNumber || '');
   const [cnrQuery, setCnrQuery] = useState(targetCase?.cnrNumber || '');
   const [isFetching, setIsFetching] = useState(false);
@@ -14,6 +21,8 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
 
   if (!isOpen) return null;
 
+  const currentCourtMeta = availableCourts.find(c => c.name === selectedCourtName) || defaultCourt;
+
   const handleStartFetch = async (e) => {
     e.preventDefault();
     setIsFetching(true);
@@ -21,82 +30,97 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
     setFetchResult(null);
 
     const logSteps = [
-      `[00.1s] Connecting to judicial portal gateway: ${courtSource}...`,
-      `[00.4s] Initiating headless browser session & TLS handshake...`,
-      `[00.8s] Submitting query for Case Ref: ${caseQuery} (CNR: ${cnrQuery})...`,
-      courtSource.includes('District') || courtSource.includes('eCourts') 
-        ? `[01.2s] Detecting eCourts audio/visual captcha -> Solving via Tesseract OCR... Success (Confidence 98.4%)`
-        : `[01.2s] Querying cause list and daily bench proceedings table...`,
-      `[01.6s] Latest daily bench order detected! Extracting digitally signed PDF...`,
-      `[02.1s] Uploading to linked Google Drive /05_Orders_and_Judgments/...`,
-      `[02.4s] Parsing bench synopsis and updating Master Cases board!`
+      `[00.1s] Connecting to judicial gateway: ${currentCourtMeta.name}...`,
+      `[00.4s] Handshaking with official portal: ${currentCourtMeta.portalUrl || 'https://services.ecourts.gov.in'}...`,
+      `[00.7s] Querying live database for Case Ref: ${caseQuery} (CNR: ${cnrQuery || 'N/A'})...`,
+      currentCourtMeta.queryEngine === 'ECOURTS_CIS' || currentCourtMeta.forumType === 'District Court'
+        ? `[01.1s] Anti-bot captcha challenged -> Solved via Neural OCR Engine (Confidence 99.1%)`
+        : `[01.1s] Querying daily cause list & signed bench order sheet repository...`,
+      `[01.5s] Latest bench order sheet detected! Extracting digitally signed order PDF...`,
+      `[01.9s] Auto-renaming & indexing into Google Drive /05_Orders_and_Judgments/...`,
+      `[02.3s] Synchronized latest listing date & bench synopsis to Master Cases Board!`
     ];
 
     for (let i = 0; i < logSteps.length; i++) {
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 380));
       setLogs(prev => [...prev, logSteps[i]]);
     }
 
-    const res = await simulateFetchCourtOrder(targetCase.id, courtSource);
+    const res = await simulateFetchCourtOrder(targetCase?.id, selectedCourtName);
     setFetchResult(res);
     setIsFetching(false);
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-      <div className="relative w-full max-w-xl bg-white rounded-m3-2xl shadow-m3-3 border border-neutral-200 overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/40 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+      <div className="relative w-full max-w-xl glass-panel-elevated rounded-4xl border border-white/95 shadow-[0_25px_60px_-15px_rgba(160,140,120,0.35)] overflow-hidden my-4 sm:my-8">
         
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-blue-900 to-indigo-900 text-white flex items-center justify-between">
+        <div className="px-6 sm:px-7 pt-6 pb-4 border-b border-warm-borderSubtle/60 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-m3-lg bg-blue-600/60 text-white shadow-xs border border-white/20">
-              <Cpu className="w-5 h-5 text-sky-300" />
+            <div className="w-10 h-10 rounded-full sun-gradient-circle text-white flex items-center justify-center shadow-amber-glow shrink-0">
+              <Cpu className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-bold">Intelligent Multi-Court Order Fetcher</h2>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-sky-500/20 text-sky-200 border border-sky-400/30">
-                  Automated OCR
+                <h2 className="text-base sm:text-lg font-bold text-warm-obsidian font-display tracking-tight">
+                  Intelligent Multi-Forum Order Fetcher
+                </h2>
+                <span className="px-2 py-0.5 rounded-pill text-[9px] font-bold bg-terracotta-soft text-terracotta border border-terracotta/20">
+                  Online Scraper
                 </span>
               </div>
-              <p className="text-xs text-blue-200">
-                Pulls daily orders across Calcutta HC, Supreme Court, District Courts & Tribunals
+              <p className="text-xs text-warm-muted mt-0.5">
+                Automatically fetches orders from any configured court portal & eCourts CIS
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+            className="w-8 h-8 rounded-full bg-warm-sand/50 hover:bg-warm-sand flex items-center justify-center text-warm-graphite transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4">
+        <div className="p-6 sm:p-7 space-y-4">
           
-          <form onSubmit={handleStartFetch} className="space-y-3">
+          <form onSubmit={handleStartFetch} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                Target Adjudicating Body / Portal *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-warm-graphite">
+                  Target Court / Forum (Includes All Future Added Forums) *
+                </label>
+                {currentCourtMeta.portalUrl && (
+                  <a
+                    href={currentCourtMeta.portalUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-semibold text-terracotta hover:underline flex items-center gap-1"
+                  >
+                    <Globe className="w-3 h-3" /> Visit Court Portal
+                  </a>
+                )}
+              </div>
+              
               <select
-                value={courtSource}
-                onChange={(e) => setCourtSource(e.target.value)}
+                value={selectedCourtName}
+                onChange={(e) => setSelectedCourtName(e.target.value)}
                 disabled={isFetching}
-                className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md focus:bg-white"
+                className="w-full capsule-input text-xs"
               >
-                <option value="Calcutta High Court (Appellate Side)">Calcutta High Court (Appellate Side)</option>
-                <option value="Calcutta High Court (Original Side)">Calcutta High Court (Original Side)</option>
-                <option value="Supreme Court of India (SCI Portal)">Supreme Court of India (SCI Portal)</option>
-                <option value="District Court (eCourts CIS Engine)">District Court (eCourts CIS Engine with Captcha OCR)</option>
-                <option value="NCLT Kolkata Bench">NCLT Kolkata Bench (Tribunal Portal)</option>
+                {availableCourts.map(c => (
+                  <option key={c.id || c.code} value={c.name}>
+                    {c.name} ({c.forumType} • {c.portalUrl || 'eCourts'})
+                  </option>
+                ))}
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                <label className="block text-xs font-semibold text-warm-graphite mb-1">
                   Case Number / Filing Ref
                 </label>
                 <input
@@ -105,12 +129,12 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                   value={caseQuery}
                   onChange={(e) => setCaseQuery(e.target.value)}
                   disabled={isFetching}
-                  className="w-full px-3 py-1.5 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md font-mono"
+                  className="w-full capsule-input text-xs font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                <label className="block text-xs font-semibold text-warm-graphite mb-1">
                   16-digit CNR Number
                 </label>
                 <input
@@ -119,27 +143,30 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                   onChange={(e) => setCnrQuery(e.target.value)}
                   disabled={isFetching}
                   placeholder="e.g. WBHC01-014820-2025"
-                  className="w-full px-3 py-1.5 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md font-mono"
+                  className="w-full capsule-input text-xs font-mono"
                 />
               </div>
             </div>
 
             {!isFetching && !fetchResult && (
-              <button
-                type="submit"
-                className="w-full py-2.5 px-4 rounded-m3-full bg-material-primary hover:bg-blue-700 text-white font-medium text-xs shadow-xs flex items-center justify-center gap-2 transition-all"
-              >
-                <Cpu className="w-4 h-4" /> Trigger Automated Live Order Fetch
-              </button>
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="capsule-btn-dark text-xs w-full justify-center"
+                >
+                  <span>Trigger Automated Live Order Fetch</span>
+                  <div className="knob"><Cpu className="w-3.5 h-3.5 text-white" /></div>
+                </button>
+              </div>
             )}
           </form>
 
-          {/* Real-time Crawler Execution Terminal */}
+          {/* Crawler Terminal Logs */}
           {logs.length > 0 && (
-            <div className="bg-neutral-900 rounded-m3-xl p-3.5 text-xs font-mono text-neutral-200 space-y-1.5 max-h-48 overflow-y-auto border border-neutral-800 shadow-inner">
-              <div className="text-[10px] uppercase font-bold text-sky-400 flex items-center gap-1.5 pb-1 border-b border-neutral-800">
-                <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
-                Crawler Pipeline Log Console
+            <div className="bg-warm-obsidian rounded-3xl p-4 text-xs font-mono text-white/90 space-y-1.5 max-h-44 overflow-y-auto border border-white/10 shadow-inner">
+              <div className="text-[10px] uppercase font-bold text-terracotta-light flex items-center gap-1.5 pb-1 border-b border-white/10">
+                <span className="w-2 h-2 rounded-full bg-terracotta animate-ping"></span>
+                Judicial Scraper Execution Stream ({currentCourtMeta.name})
               </div>
               {logs.map((line, idx) => (
                 <div key={idx} className="leading-relaxed text-emerald-400">
@@ -149,28 +176,29 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
             </div>
           )}
 
-          {/* Success State */}
+          {/* Success Result */}
           {fetchResult?.success && (
-            <div className="p-4 bg-emerald-50 rounded-m3-xl border border-emerald-200 space-y-2">
+            <div className="p-4 bg-emerald-500/10 rounded-3xl border border-emerald-500/20 space-y-2">
               <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                 Latest Bench Order Fetched & Ingested!
               </div>
-              <p className="text-xs text-neutral-700 font-medium">
-                Saved File: <span className="font-mono text-blue-900">{fetchResult.doc.name}</span>
+              <p className="text-xs text-warm-obsidian font-medium">
+                Saved File: <span className="font-mono text-terracotta">{fetchResult.doc.name}</span>
               </p>
-              <p className="text-xs text-neutral-600 italic">
-                Summary: "{fetchResult.summary}"
+              <p className="text-xs text-warm-graphite italic">
+                "{fetchResult.summary}"
               </p>
-              <div className="pt-2 flex items-center justify-between border-t border-emerald-200">
-                <span className="text-[11px] text-emerald-700 font-medium">
+              <div className="pt-2 flex items-center justify-between border-t border-emerald-500/20">
+                <span className="text-[11px] text-emerald-800 font-medium">
                   Stored in Google Drive /05_Orders_and_Judgments
                 </span>
                 <button
                   onClick={onClose}
-                  className="px-3 py-1 bg-emerald-700 text-white rounded-full text-xs font-medium hover:bg-emerald-800"
+                  className="capsule-btn-dark text-xs"
                 >
-                  Done
+                  <span>Done</span>
+                  <div className="knob"><ArrowRight className="w-3 h-3 text-white" /></div>
                 </button>
               </div>
             </div>

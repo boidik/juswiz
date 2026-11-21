@@ -7,10 +7,11 @@ import {
   Bell, 
   User, 
   LogOut, 
-  ChevronDown,
-  LogIn,
-  Sparkles,
-  ArrowRight
+  ChevronDown, 
+  LogIn, 
+  Sparkles, 
+  ArrowRight,
+  FolderTree
 } from 'lucide-react';
 
 export const Header = () => {
@@ -108,6 +109,19 @@ export const Header = () => {
 
           {/* Right Action Bar */}
           <div className="flex items-center gap-2">
+            {/* Master Google Drive Cloud */}
+            {currentUser && (
+              <a
+                href={systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive'}
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 rounded-full hover:bg-white text-warm-graphite hover:text-warm-obsidian transition-colors border border-transparent hover:border-warm-borderSubtle hidden sm:flex items-center"
+                title="Chambers Master Google Drive"
+              >
+                <FolderTree className="w-4 h-4 text-terracotta" />
+              </a>
+            )}
+
             {/* Notification Bell */}
             {currentUser && (
               <button

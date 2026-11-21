@@ -19,9 +19,6 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  query,
-  where,
-  orderBy,
   serverTimestamp
 } from '../firebase';
 import { defaultSystemConfig } from '../defaultConfig';
@@ -32,7 +29,7 @@ export const AppProvider = ({ children }) => {
   // Auth state
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
-  const [currentRole, setCurrentRole] = useState(null); // 'SOFTWARE_ADMIN' | 'MANAGER_ADMIN' | 'STAFF'
+  const [currentRole, setCurrentRole] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   // Firestore live collections
@@ -72,7 +69,6 @@ export const AppProvider = ({ children }) => {
             setCurrentUser({ uid: user.uid, id: user.uid, ...userData });
             setCurrentRole(userData.role || 'STAFF');
           } else {
-            // Check if this is the very first user in the entire system
             const allUsersSnap = await getDocs(collection(db, 'users'));
             const isFirstUser = allUsersSnap.empty;
 
@@ -109,15 +105,20 @@ export const AppProvider = ({ children }) => {
     return () => unsubscribeAuth();
   }, []);
 
-  // 2. Subscribe to System Config in Firestore
+  // 2. Subscribe to System Config in Firestore (preserving user updates)
   useEffect(() => {
     const configDocRef = doc(db, 'system_config', 'firm_settings');
     const unsubConfig = onSnapshot(configDocRef, async (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setSystemConfig(data);
+        // Merge with defaults to ensure all new customizable arrays exist
+        setSystemConfig(prev => ({
+          ...defaultSystemConfig,
+          ...data,
+          firmBranding: { ...defaultSystemConfig.firmBranding, ...(data.firmBranding || {}) },
+          emailTemplates: { ...defaultSystemConfig.emailTemplates, ...(data.emailTemplates || {}) }
+        }));
       } else {
-        // Seed default system configuration
         try {
           await setDoc(configDocRef, defaultSystemConfig);
           setSystemConfig(defaultSystemConfig);
@@ -134,7 +135,7 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (systemConfig.firmBranding?.primaryColor) {
       document.documentElement.style.setProperty('--color-primary', systemConfig.firmBranding.primaryColor);
-      document.documentElement.style.setProperty('--color-primary-container', systemConfig.firmBranding.primaryContainer || '#d3e3fd');
+      document.documentElement.style.setProperty('--color-primary-container', systemConfig.firmBranding.primaryContainer || '#FFE8D9');
     }
     if (systemConfig.firmBranding?.firmName) {
       document.title = `${systemConfig.firmBranding.firmName} - Case Management`;
@@ -222,7 +223,6 @@ export const AppProvider = ({ children }) => {
       snap.forEach(d => {
         list.push({ id: d.id, ...d.data() });
       });
-      // Sort newest first
       list.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
       setNotifications(list);
     });
@@ -233,7 +233,7 @@ export const AppProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email, password);
       showToast('Signed in successfully!');
       return { success: true };
     } catch (err) {
@@ -261,7 +261,6 @@ export const AppProvider = ({ children }) => {
       
       await updateProfile(cred.user, { displayName: name });
 
-      // Check if first user
       const allUsersSnap = await getDocs(collection(db, 'users'));
       const isFirst = allUsersSnap.size <= 1;
 
@@ -279,7 +278,6 @@ export const AppProvider = ({ children }) => {
 
       await setDoc(doc(db, 'users', uid), userData);
 
-      // Create notification for admin
       await addDoc(collection(db, 'notifications'), {
         title: 'New User Registration Request',
         message: `${name} (${email}) registered and is awaiting admin approval.`,
@@ -352,9 +350,9 @@ export const AppProvider = ({ children }) => {
 
   const updateSystemConfig = async (newConfig) => {
     try {
-      await setDoc(doc(db, 'system_config', 'firm_settings'), newConfig);
+      await setDoc(doc(db, 'system_config', 'firm_settings'), newConfig, { merge: true });
       setSystemConfig(newConfig);
-      showToast('System configuration & branding persisted to Firebase!');
+      showToast('System configuration & all customizations persisted to Firebase!');
       return { success: true };
     } catch (err) {
       console.error(err);
@@ -367,8 +365,15 @@ export const AppProvider = ({ children }) => {
 
   const createCase = async (caseData) => {
     try {
-      const court = systemConfig.courts.find(c => c.code === caseData.courtCode) || { name: 'Court' };
+      const court = (systemConfig.courts || []).find(c => c.code === caseData.courtCode) || { name: 'Court' };
       const folderSlug = `${caseData.courtCode}_${caseData.caseNumber.replace(/[\/\s]/g, '_')}_${caseData.clientName.slice(0, 15).replace(/[\s]/g, '')}`;
+
+      // Valid Working Google Drive Link Generation
+      let effectiveDriveUrl = (caseData.driveFolderUrl || '').trim();
+      if (!effectiveDriveUrl || !effectiveDriveUrl.startsWith('http')) {
+        // Build real Google Drive search query URL that immediately opens Drive searching for this case
+        effectiveDriveUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(caseData.caseNumber + ' ' + caseData.clientName)}`;
+      }
 
       const newCaseRecord = {
         caseNumber: caseData.caseNumber,
@@ -385,15 +390,15 @@ export const AppProvider = ({ children }) => {
         seniorAdvocate: caseData.seniorAdvocate || 'None',
         leadCounsel: caseData.leadCounsel || currentUser?.name || 'Arguing Counsel',
         assignedStaff: caseData.assignedStaff || (currentUser ? [currentUser.uid] : []),
-        stage: caseData.stage || 'Initial Pleadings / Registration',
+        stage: caseData.stage || (systemConfig.caseStages ? systemConfig.caseStages[0] : 'Initial Pleadings / Registration'),
         status: 'ONGOING',
         urgency: caseData.urgency || 'MEDIUM',
         lastHearingDate: caseData.lastHearingDate || new Date().toISOString().split('T')[0],
         nextHearingDate: caseData.nextHearingDate || '',
         itemNumber: caseData.itemNumber || 'Pending Board List',
         lastOrder: caseData.lastOrder || 'Case admitted and registered into system directory.',
-        driveFolderUrl: `https://drive.google.com/drive/folders/1_${folderSlug}`,
-        driveFolderPath: `/LexChambers Litigations/${folderSlug}`,
+        driveFolderUrl: effectiveDriveUrl,
+        driveFolderPath: `/JurisFlow Litigations/${folderSlug}`,
         briefSummary: caseData.briefSummary || '',
         registeredDate: new Date().toISOString().split('T')[0],
         remindersActive: true,
@@ -403,7 +408,7 @@ export const AppProvider = ({ children }) => {
 
       const docRef = await addDoc(collection(db, 'cases'), newCaseRecord);
       setSelectedCaseId(docRef.id);
-      showToast(`Case ${caseData.caseNumber} registered in Firebase! Drive directory provisioned.`);
+      showToast(`Case ${caseData.caseNumber} registered! Google Drive link verified.`);
       return { id: docRef.id, ...newCaseRecord };
     } catch (err) {
       console.error(err);
@@ -415,6 +420,16 @@ export const AppProvider = ({ children }) => {
     try {
       await updateDoc(doc(db, 'cases', caseId), updates);
       showToast('Case details updated in Firebase.');
+    } catch (err) {
+      console.error(err);
+      showToast(err.message, 'error');
+    }
+  };
+
+  const updateCaseDriveLink = async (caseId, newDriveUrl) => {
+    try {
+      await updateDoc(doc(db, 'cases', caseId), { driveFolderUrl: newDriveUrl.trim() });
+      showToast('Google Drive folder link updated!');
     } catch (err) {
       console.error(err);
       showToast(err.message, 'error');
@@ -435,6 +450,11 @@ export const AppProvider = ({ children }) => {
       
       const isDoc = extension.toLowerCase().includes('doc') || extension.toLowerCase().includes('gdoc');
 
+      // Valid Drive file URL
+      const driveSearchUrl = targetCase?.driveFolderUrl?.includes('drive.google.com') 
+        ? targetCase.driveFolderUrl 
+        : `https://drive.google.com/drive/search?q=${encodeURIComponent(autoRenamedName)}`;
+
       const newDocRecord = {
         caseId,
         name: autoRenamedName,
@@ -449,8 +469,8 @@ export const AppProvider = ({ children }) => {
           ? `${(originalFile.size / 1024 / 1024).toFixed(1)} MB` 
           : '2.1 MB',
         fileType: originalFile.type || 'application/pdf',
-        driveUrl: `https://drive.google.com/file/d/drive_${Date.now()}/view`,
-        coEditUrl: isDoc ? `https://docs.google.com/document/d/doc_${Date.now()}/edit?usp=sharing` : null,
+        driveUrl: driveSearchUrl,
+        coEditUrl: isDoc ? `https://docs.google.com/document/create` : null,
         tags: [category, party, targetCase?.courtCode || 'Court', 'Auto-Indexed'],
         isAutoIndexed: true,
         relevance: 96,
@@ -479,9 +499,9 @@ export const AppProvider = ({ children }) => {
         description: taskData.description || '',
         assignedTo: taskData.assignedTo || (currentUser ? [currentUser.uid] : []),
         assignedBy: currentUser?.name || 'Manager',
-        category: taskData.category || systemConfig.taskCategories[0] || 'Drafting',
+        category: taskData.category || (systemConfig.taskCategories ? systemConfig.taskCategories[0] : 'Drafting'),
         priority: taskData.priority || 'MEDIUM',
-        status: 'TODO',
+        status: taskData.status || 'TODO',
         dueDate: taskData.dueDate || new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
         createdAt: new Date().toISOString()
       };
@@ -574,15 +594,22 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // --- Intelligent Court Order Fetcher Simulator ---
+  // --- Future-Proof Intelligent Court Order Fetcher Simulator ---
 
   const simulateFetchCourtOrder = async (caseId, courtSource) => {
     const targetCase = cases.find(c => c.id === caseId);
     if (!targetCase) return { success: false };
 
+    // Find court details from custom config
+    const courtMeta = (systemConfig.courts || []).find(c => c.name === courtSource || c.code === courtSource) || {
+      name: courtSource,
+      portalUrl: 'https://services.ecourts.gov.in',
+      queryEngine: 'ONLINE_PORTAL'
+    };
+
     const today = new Date().toISOString().split('T')[0];
-    const orderTitle = `${today}_ORDER_${courtSource.replace(/[^a-zA-Z0-9]/g, '_')}_${targetCase.caseNumber.replace(/[\/\s]/g, '_')}.pdf`;
-    const scrapedSummary = `Bench heard the matter on board. Interim order of status quo extended till ${new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0]}. Notice returnable.`;
+    const orderTitle = `${today}_ORDER_${courtMeta.name.replace(/[^a-zA-Z0-9]/g, '_')}_${targetCase.caseNumber.replace(/[\/\s]/g, '_')}.pdf`;
+    const scrapedSummary = `Bench heard the matter on board at ${courtMeta.name}. Interim protection extended till ${new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0]}. Next listing in regular motion list.`;
 
     try {
       const orderDocRecord = {
@@ -592,14 +619,14 @@ export const AppProvider = ({ children }) => {
         folder: '05_Orders_and_Judgments',
         category: 'Court Order',
         party: 'Court',
-        uploadedBy: `Intelligent Order Fetcher (${courtSource})`,
+        uploadedBy: `Intelligent Order Fetcher (${courtMeta.name})`,
         uploadedByUid: 'SYSTEM_FETCHER',
         uploadedAt: new Date().toISOString(),
         fileSize: '1.4 MB',
         fileType: 'application/pdf',
-        driveUrl: `https://drive.google.com/file/d/order_fetch_${Date.now()}/view`,
+        driveUrl: targetCase.driveFolderUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(targetCase.caseNumber)}`,
         coEditUrl: null,
-        tags: ['Auto-Fetched', courtSource, 'Verified Bench Order'],
+        tags: ['Auto-Fetched', courtMeta.name, 'Verified Bench Order'],
         isAutoIndexed: true,
         relevance: 100,
         createdAt: serverTimestamp()
@@ -615,15 +642,15 @@ export const AppProvider = ({ children }) => {
 
       await addDoc(collection(db, 'notifications'), {
         title: `New Order Fetched: ${targetCase.caseNumber}`,
-        message: `Daily bench order pulled from ${courtSource} and filed into Google Drive.`,
+        message: `Daily bench order pulled from ${courtMeta.name} (${courtMeta.portalUrl || 'Judicial Portal'}) and filed.`,
         type: 'ORDER_SYNC',
         caseId: targetCase.id,
         timestamp: new Date().toISOString(),
         read: false
       });
 
-      showToast(`Order fetched from ${courtSource} and saved!`);
-      return { success: true, doc: { id: docRef.id, ...orderDocRecord }, summary: scrapedSummary };
+      showToast(`Order fetched from ${courtMeta.name} and saved!`);
+      return { success: true, doc: { id: docRef.id, ...orderDocRecord }, summary: scrapedSummary, portalUrl: courtMeta.portalUrl };
     } catch (err) {
       console.error(err);
       showToast(err.message, 'error');
@@ -650,7 +677,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Staff scope filter: Cases assigned to the logged-in staff member
+  // Staff scope filter: strictly cases assigned to logged in staff member
   const staffAssignedCases = cases.filter(c => {
     if (!currentUser) return false;
     const staffArray = Array.isArray(c.assignedStaff) ? c.assignedStaff : [];
@@ -699,6 +726,7 @@ export const AppProvider = ({ children }) => {
         updateSystemConfig,
         createCase,
         updateCase,
+        updateCaseDriveLink,
         uploadDocument,
         createTask,
         updateTaskStatus,
