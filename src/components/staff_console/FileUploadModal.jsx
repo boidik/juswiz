@@ -45,31 +45,33 @@ export const FileUploadModal = ({ isOpen, onClose, targetCaseId }) => {
     else if (val.includes('Brief')) setFolder('06_Conference_Briefs');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!file && !customDesc) return;
 
     setIsUploading(true);
 
-    const dummyFile = file || {
-      name: `${cleanDesc}.pdf`,
-      size: 1024 * 1024 * 2.4,
-      type: 'application/pdf'
-    };
+    const fileToUpload = file || new File(
+      [new Blob(['Litigation filing content'], { type: 'application/pdf' })], 
+      `${cleanDesc}.pdf`, 
+      { type: 'application/pdf' }
+    );
 
-    setTimeout(() => {
-      uploadDocument({
+    try {
+      await uploadDocument({
         caseId: targetCaseId,
-        originalFile: dummyFile,
+        originalFile: fileToUpload,
         category,
         folder,
         party,
         customDesc
       });
-
+    } catch (err) {
+      console.error('File upload error:', err);
+    } finally {
       setIsUploading(false);
       onClose();
-    }, 700);
+    }
   };
 
   return (

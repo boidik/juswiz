@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, FolderPlus, CheckCircle2, Building2, User, Link2, ArrowRight } from 'lucide-react';
+import { X, FolderPlus, CheckCircle2, Building2, User, Link2, ArrowRight, FolderTree, ExternalLink, Sparkles } from 'lucide-react';
 
 export const CaseRegistrationModal = ({ isOpen, onClose }) => {
-  const { systemConfig, users, createCase } = useApp();
+  const { systemConfig, users, createCase, isGoogleConnected, connectGoogleWorkspace } = useApp();
 
   const [caseNumber, setCaseNumber] = useState('');
   const [title, setTitle] = useState('');
@@ -237,22 +237,51 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
                 </div>
               </div>
 
-              {/* Google Drive Link Explicit Config */}
-              <div className="p-4 bg-white/80 rounded-3xl border border-warm-borderSubtle space-y-2">
-                <label className="block text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
-                  <Link2 className="w-3.5 h-3.5 text-terracotta" />
-                  Google Drive Folder Link (Verified URL)
-                </label>
+              {/* Google Drive Integration & Folder Provisioning */}
+              <div className="p-4 bg-white/90 rounded-3xl border border-warm-borderSubtle space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                    <FolderTree className="w-4 h-4 text-terracotta" />
+                    Google Drive Cloud Storage Provisioning
+                  </label>
+                  {isGoogleConnected ? (
+                    <span className="px-2.5 py-0.5 rounded-pill text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Drive API Connected
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={connectGoogleWorkspace}
+                      className="px-2.5 py-0.5 rounded-pill text-[10px] font-bold bg-terracotta-soft text-terracotta border border-terracotta/20 hover:bg-terracotta hover:text-white transition-colors"
+                    >
+                      Authorize Drive API
+                    </button>
+                  )}
+                </div>
+
                 <input
                   type="url"
                   value={driveFolderUrl}
                   onChange={(e) => setDriveFolderUrl(e.target.value)}
-                  placeholder="https://drive.google.com/drive/folders/YOUR_FOLDER_ID (Leave blank to use Drive search query)"
+                  placeholder="https://drive.google.com/drive/folders/YOUR_FOLDER_ID (Leave blank for automatic provisioning)"
                   className="w-full capsule-input text-xs font-mono"
                 />
-                <p className="text-[11px] text-warm-muted">
-                  * If left blank, JurisFlow will generate a working search link that opens your Drive searching for this case number.
-                </p>
+
+                <div className="flex flex-wrap items-center justify-between text-[11px] text-warm-muted gap-2 pt-0.5">
+                  <span>
+                    {isGoogleConnected 
+                      ? "✓ Auto-creates parent case directory & 6 subfolders in your Google Drive on submission."
+                      : "Leave blank to auto-generate a valid Drive search link or click Authorize to create real folders."}
+                  </span>
+                  <a
+                    href="https://drive.google.com/drive/my-drive"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-bold text-terracotta hover:underline inline-flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3 h-3" /> Open My Drive
+                  </a>
+                </div>
               </div>
 
               {/* Client & Opposite Party Info */}

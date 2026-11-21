@@ -218,19 +218,28 @@ export const ShareBriefModal = ({ isOpen, onClose, targetCase, caseDocuments }) 
               <a
                 href={buildMailtoUrl()}
                 className="inline-flex items-center gap-1 px-3 py-2 rounded-pill border border-warm-borderSubtle hover:bg-white text-xs font-medium text-warm-graphite transition-colors"
-                title="Send using default desktop mail app"
+                title="Send using default desktop mail app (Outlook / Apple Mail)"
               >
-                <Mail className="w-3.5 h-3.5" /> Mail App
+                <Mail className="w-3.5 h-3.5" /> Desktop Mail
               </a>
 
-              <button
-                type="submit"
-                disabled={isSent}
-                className="capsule-btn-dark text-xs disabled:opacity-50"
+              <a
+                href={buildGmailComposeUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  setIsSent(true);
+                  showToast('Gmail composer opened in new tab with pre-filled case brief!');
+                  setTimeout(() => {
+                    setIsSent(false);
+                    onClose();
+                  }, 1200);
+                }}
+                className="capsule-btn-dark text-xs"
               >
-                <span>{isSent ? 'Dispatched' : 'Open in Gmail Web'}</span>
+                <span>Open in Gmail Web</span>
                 <div className="knob"><ExternalLink className="w-3.5 h-3.5 text-white" /></div>
-              </button>
+              </a>
             </div>
           </div>
 

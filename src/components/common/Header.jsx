@@ -23,6 +23,8 @@ export const Header = () => {
     notifications, 
     setIsNotificationOpen,
     setIsAuthModalOpen,
+    isGoogleConnected,
+    connectGoogleWorkspace,
     logout
   } = useApp();
 
@@ -109,6 +111,22 @@ export const Header = () => {
 
           {/* Right Action Bar */}
           <div className="flex items-center gap-2">
+            {/* Google Workspace Connection Pill */}
+            {currentUser && (
+              <button
+                onClick={connectGoogleWorkspace}
+                className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-pill text-[11px] font-semibold transition-all border ${
+                  isGoogleConnected 
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                    : 'bg-white/90 text-warm-graphite hover:bg-white border-warm-borderSubtle hover:text-warm-obsidian shadow-xs'
+                }`}
+                title={isGoogleConnected ? "Google Workspace Connected (Drive, Meet & Calendar)" : "Click to connect Google Workspace (Drive, Meet & Calendar)"}
+              >
+                <span className={`w-2 h-2 rounded-full ${isGoogleConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+                <span>{isGoogleConnected ? 'Google Synced' : 'Connect Google'}</span>
+              </button>
+            )}
+
             {/* Master Google Drive Cloud */}
             {currentUser && (
               <a

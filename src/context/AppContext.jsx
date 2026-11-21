@@ -3,6 +3,7 @@ import {
   auth,
   db,
   googleProvider,
+  GoogleAuthProvider,
   signInWithEmailAndPassword,
   signInWithPopup,
   createUserWithEmailAndPassword,
@@ -22,6 +23,17 @@ import {
   serverTimestamp
 } from '../firebase';
 import { defaultSystemConfig } from '../defaultConfig';
+import {
+  getStoredGoogleToken,
+  setStoredGoogleToken,
+  clearStoredGoogleToken,
+  requestGoogleAccessToken,
+  createCaseFolderInDrive,
+  uploadFileToDrive,
+  createGoogleCalendarMeeting,
+  buildGmailWebUrl,
+  buildMailtoUrl
+} from '../services/googleWorkspace';
 
 const AppContext = createContext(null);
 
@@ -44,6 +56,9 @@ export const AppProvider = ({ children }) => {
 
   // Active Selected Case in Staff Workspace
   const [selectedCaseId, setSelectedCaseId] = useState('');
+
+  // Google Workspace Connected State
+  const [isGoogleConnected, setIsGoogleConnected] = useState(Boolean(getStoredGoogleToken()));
 
   // UI Modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -244,12 +259,42 @@ export const AppProvider = ({ children }) => {
 
   const loginWithGoogle = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
-      showToast('Signed in via Google Workspace!');
+      const result = await signInWithPopup(auth, googleProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        setStoredGoogleToken(credential.accessToken);
+        setIsGoogleConnected(true);
+      }
+      showToast('Signed in via Google Workspace (Drive & Calendar synced)!');
       return { success: true };
     } catch (err) {
       console.error(err);
       showToast(err.message, 'error');
+      return { success: false, message: err.message };
+    }
+  };
+
+  const connectGoogleWorkspace = async () => {
+    try {
+      const token = await requestGoogleAccessToken();
+      setIsGoogleConnected(true);
+      showToast('Google Workspace (Drive, Meet & Calendar) connected successfully!');
+      return { success: true, token };
+    } catch (err) {
+      console.warn('GIS Token request error, attempting Firebase Google Provider:', err);
+      try {
+        const result = await signInWithPopup(auth, googleProvider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential?.accessToken) {
+          setStoredGoogleToken(credential.accessToken);
+          setIsGoogleConnected(true);
+          showToast('Google Workspace connected via Google Authentication!');
+          return { success: true, token: credential.accessToken };
+        }
+      } catch (popupErr) {
+        console.error('Popup fallback error:', popupErr);
+      }
+      showToast('Could not complete Google authorization: ' + err.message, 'error');
       return { success: false, message: err.message };
     }
   };
@@ -368,11 +413,20 @@ export const AppProvider = ({ children }) => {
       const court = (systemConfig.courts || []).find(c => c.code === caseData.courtCode) || { name: 'Court' };
       const folderSlug = `${caseData.courtCode}_${caseData.caseNumber.replace(/[\/\s]/g, '_')}_${caseData.clientName.slice(0, 15).replace(/[\s]/g, '')}`;
 
-      // Valid Working Google Drive Link Generation
+      // Coordinate with Google Drive API
       let effectiveDriveUrl = (caseData.driveFolderUrl || '').trim();
+      let driveFolderId = null;
+
       if (!effectiveDriveUrl || !effectiveDriveUrl.startsWith('http')) {
-        // Build real Google Drive search query URL that immediately opens Drive searching for this case
-        effectiveDriveUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(caseData.caseNumber + ' ' + caseData.clientName)}`;
+        const driveResult = await createCaseFolderInDrive({
+          caseNumber: caseData.caseNumber,
+          clientName: caseData.clientName,
+          courtCode: caseData.courtCode,
+          folderTemplate: systemConfig.driveFolderTemplate || []
+        });
+
+        effectiveDriveUrl = driveResult.folderUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(caseData.caseNumber + ' ' + caseData.clientName)}`;
+        driveFolderId = driveResult.folderId || null;
       }
 
       const newCaseRecord = {
@@ -398,6 +452,7 @@ export const AppProvider = ({ children }) => {
         itemNumber: caseData.itemNumber || 'Pending Board List',
         lastOrder: caseData.lastOrder || 'Case admitted and registered into system directory.',
         driveFolderUrl: effectiveDriveUrl,
+        driveFolderId: driveFolderId,
         driveFolderPath: `/JurisFlow Litigations/${folderSlug}`,
         briefSummary: caseData.briefSummary || '',
         registeredDate: new Date().toISOString().split('T')[0],
@@ -408,7 +463,7 @@ export const AppProvider = ({ children }) => {
 
       const docRef = await addDoc(collection(db, 'cases'), newCaseRecord);
       setSelectedCaseId(docRef.id);
-      showToast(`Case ${caseData.caseNumber} registered! Google Drive link verified.`);
+      showToast(`Case ${caseData.caseNumber} registered & Google Drive directory linked!`);
       return { id: docRef.id, ...newCaseRecord };
     } catch (err) {
       console.error(err);
@@ -442,34 +497,45 @@ export const AppProvider = ({ children }) => {
     try {
       const targetCase = cases.find(c => c.id === caseId);
       const datePrefix = new Date().toISOString().split('T')[0];
-      const extension = originalFile.name.split('.').pop() || 'pdf';
-      const cleanDesc = (customDesc || originalFile.name.split('.')[0]).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const extension = (originalFile?.name || 'document.pdf').split('.').pop() || 'pdf';
+      const cleanDesc = (customDesc || originalFile?.name?.split('.')[0] || 'Document').replace(/[^a-zA-Z0-9_-]/g, '_');
       
-      const categoryTag = category.split(' ')[0].toUpperCase().replace(/[^A-Z]/g, '');
+      const categoryTag = (category || 'DOC').split(' ')[0].toUpperCase().replace(/[^A-Z]/g, '');
       const autoRenamedName = `${datePrefix}_${categoryTag}_${party}_${cleanDesc}_v1.${extension}`;
       
       const isDoc = extension.toLowerCase().includes('doc') || extension.toLowerCase().includes('gdoc');
 
-      // Valid Drive file URL
-      const driveSearchUrl = targetCase?.driveFolderUrl?.includes('drive.google.com') 
+      let driveUrl = targetCase?.driveFolderUrl?.includes('drive.google.com') 
         ? targetCase.driveFolderUrl 
         : `https://drive.google.com/drive/search?q=${encodeURIComponent(autoRenamedName)}`;
+
+      // Attempt live Google Drive upload if file binary is present
+      if (originalFile instanceof Blob || originalFile instanceof File) {
+        const uploadResult = await uploadFileToDrive({
+          file: originalFile,
+          parentFolderId: targetCase?.driveFolderId,
+          fileName: autoRenamedName
+        });
+        if (uploadResult?.driveUrl) {
+          driveUrl = uploadResult.driveUrl;
+        }
+      }
 
       const newDocRecord = {
         caseId,
         name: autoRenamedName,
-        originalName: originalFile.name,
+        originalName: originalFile?.name || autoRenamedName,
         folder: folder || '01_Client_Documents',
         category,
         party,
         uploadedBy: currentUser?.name || 'Staff Counsel',
         uploadedByUid: currentUser?.uid || '',
         uploadedAt: new Date().toISOString(),
-        fileSize: typeof originalFile.size === 'number' 
+        fileSize: typeof originalFile?.size === 'number' 
           ? `${(originalFile.size / 1024 / 1024).toFixed(1)} MB` 
           : '2.1 MB',
-        fileType: originalFile.type || 'application/pdf',
-        driveUrl: driveSearchUrl,
+        fileType: originalFile?.type || 'application/pdf',
+        driveUrl,
         coEditUrl: isDoc ? `https://docs.google.com/document/create` : null,
         tags: [category, party, targetCase?.courtCode || 'Court', 'Auto-Indexed'],
         isAutoIndexed: true,
@@ -539,32 +605,50 @@ export const AppProvider = ({ children }) => {
 
   const scheduleConference = async (confData) => {
     try {
-      const randomCode = Math.random().toString(36).substring(2, 5) + '-' +
-                         Math.random().toString(36).substring(2, 6) + '-' +
-                         Math.random().toString(36).substring(2, 5);
-      const meetUrl = `https://meet.google.com/${randomCode}`;
+      const meetingResult = await createGoogleCalendarMeeting({
+        title: confData.title,
+        date: confData.date,
+        time: confData.time,
+        durationMinutes: confData.durationMinutes || 45,
+        attendees: confData.attendees || [],
+        agenda: confData.agenda || 'Litigation briefing conference.',
+        caseNumber: confData.caseNumber || 'CASE-GENERAL'
+      });
 
       const newConfRecord = {
         caseId: confData.caseId || '',
         caseNumber: confData.caseNumber || 'GENERAL',
         title: confData.title,
-        meetUrl,
+        meetUrl: meetingResult.meetUrl,
+        calendarUrl: meetingResult.calendarUrl,
         date: confData.date,
         time: confData.time,
         durationMinutes: confData.durationMinutes || 45,
         host: currentUser?.name || 'Counsel',
         attendees: confData.attendees || [],
         agenda: confData.agenda || 'Litigation briefing conference.',
-        calendarEventId: `gcal_${Date.now()}`,
+        calendarEventId: meetingResult.eventId || `gcal_${Date.now()}`,
+        isApiSynced: meetingResult.isApiSynced || false,
         createdAt: serverTimestamp()
       };
 
       const docRef = await addDoc(collection(db, 'conferences'), newConfRecord);
-      showToast(`GMeet scheduled & synced: ${meetUrl}`);
+      showToast(`GMeet scheduled & synced: ${meetingResult.meetUrl}`);
       return { id: docRef.id, ...newConfRecord };
     } catch (err) {
       console.error(err);
       showToast(err.message, 'error');
+      return {
+        id: `conf_${Date.now()}`,
+        meetUrl: 'https://meet.google.com/new',
+        calendarUrl: 'https://calendar.google.com',
+        title: confData.title,
+        date: confData.date,
+        time: confData.time,
+        durationMinutes: confData.durationMinutes || 45,
+        attendees: confData.attendees || [],
+        agenda: confData.agenda
+      };
     }
   };
 
@@ -715,6 +799,8 @@ export const AppProvider = ({ children }) => {
         isNotificationOpen,
         setIsNotificationOpen,
         toastMessage,
+        isGoogleConnected,
+        connectGoogleWorkspace,
         login,
         loginWithGoogle,
         registerNewUser,
