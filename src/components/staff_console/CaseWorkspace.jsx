@@ -19,7 +19,9 @@ import {
   Link2,
   X,
   Save,
-  CheckCircle2
+  CheckCircle2,
+  FolderTree,
+  Sparkles
 } from 'lucide-react';
 import { DocumentVault } from './DocumentVault';
 import { FileUploadModal } from './FileUploadModal';
@@ -27,6 +29,7 @@ import { GMeetModal } from './GMeetModal';
 import { ShareBriefModal } from './ShareBriefModal';
 import { HearingDateModal } from './HearingDateModal';
 import { OrderFetcherModal } from './OrderFetcherModal';
+import { extractDriveFolderId, isValidGoogleDriveId } from '../../services/googleWorkspace';
 
 export const CaseWorkspace = () => {
   const { 
@@ -37,7 +40,10 @@ export const CaseWorkspace = () => {
     tasks, 
     conferences,
     updateTaskStatus,
-    updateCaseDriveLink
+    updateCaseDriveLink,
+    provisionCaseInGoogleDrive,
+    isGoogleConnected,
+    connectGoogleWorkspace
   } = useApp();
 
   const [activeTab, setActiveTab] = useState('VAULT'); // 'VAULT' | 'TASKS' | 'CONFERENCES' | 'ORDERS'
@@ -50,6 +56,7 @@ export const CaseWorkspace = () => {
   const [isOrderFetcherOpen, setIsOrderFetcherOpen] = useState(false);
   const [isDriveEditOpen, setIsDriveEditOpen] = useState(false);
   const [customDriveInput, setCustomDriveInput] = useState('');
+  const [isProvisioningDrive, setIsProvisioningDrive] = useState(false);
 
   if (!selectedCase) {
     return (
@@ -169,21 +176,21 @@ export const CaseWorkspace = () => {
 
             {/* Google Drive Folder Buttons */}
             <div className="flex flex-col gap-2">
-              {selectedCase.driveFolderUrl && (
-                <a
-                  href={selectedCase.driveFolderUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-12 h-12 rounded-3xl glass-panel border border-white/90 hover:bg-white flex items-center justify-center text-warm-obsidian transition-colors shadow-glass shrink-0"
-                  title="Open Google Drive Directory"
-                >
-                  <FolderOpen className="w-5 h-5 text-terracotta" />
-                </a>
-              )}
+              <a
+                href={selectedCase.driveFolderUrl || 'https://drive.google.com/drive/my-drive'}
+                target="_blank"
+                rel="noreferrer"
+                className={`w-12 h-12 rounded-3xl glass-panel border border-white/90 hover:bg-white flex items-center justify-center transition-colors shadow-glass shrink-0 ${
+                  selectedCase.hasRealDriveFolder ? 'text-warm-obsidian' : 'text-warm-muted'
+                }`}
+                title={selectedCase.hasRealDriveFolder ? `Open Linked Drive Folder (${selectedCase.driveFolderId})` : "Open Google Drive (Click below to link Folder ID)"}
+              >
+                <FolderOpen className={`w-5 h-5 ${selectedCase.hasRealDriveFolder ? 'text-terracotta' : 'text-warm-muted'}`} />
+              </a>
               <button
                 onClick={handleOpenDriveModal}
                 className="w-12 h-10 rounded-2xl glass-panel border border-white/90 hover:bg-white flex items-center justify-center text-warm-graphite hover:text-warm-obsidian transition-colors shadow-glass shrink-0 text-[10px] font-bold"
-                title="Edit / Link Google Drive Folder"
+                title="Link or Provision Google Drive Folder ID"
               >
                 <Link2 className="w-4 h-4 text-terracotta" />
               </button>
@@ -416,10 +423,10 @@ export const CaseWorkspace = () => {
             <div className="flex items-center justify-between border-b border-warm-borderSubtle/60 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-full sun-gradient-circle text-white flex items-center justify-center shadow-xs">
-                  <Link2 className="w-4 h-4 text-white" />
+                  <FolderTree className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-warm-obsidian font-display">Link Case Google Drive</h3>
+                  <h3 className="text-sm font-bold text-warm-obsidian font-display">Google Drive Folder Coordination</h3>
                   <p className="text-[11px] text-warm-muted">{selectedCase.caseNumber}</p>
                 </div>
               </div>
@@ -431,44 +438,85 @@ export const CaseWorkspace = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveDriveLink} className="space-y-3.5">
+            {/* Folder Status Banner */}
+            <div className={`p-3.5 rounded-2xl border text-xs ${
+              selectedCase.hasRealDriveFolder 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
+              <div className="flex items-center gap-2 font-bold">
+                <span className={`w-2 h-2 rounded-full ${selectedCase.hasRealDriveFolder ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                <span>{selectedCase.hasRealDriveFolder ? 'Real Google Drive Folder Linked' : 'No Unique Folder ID Linked Yet'}</span>
+              </div>
+              <p className="text-[11px] mt-1 text-warm-graphite">
+                {selectedCase.hasRealDriveFolder 
+                  ? `Google Drive Unique ID: ${selectedCase.driveFolderId}`
+                  : 'Google Drive folders use unique opaque IDs (e.g. drive.google.com/drive/folders/1A2b3C...). You can auto-create the folder or paste your folder link below.'}
+              </p>
+            </div>
+
+            {/* 1-Click Auto Provisioning Button */}
+            <div className="p-4 bg-white/70 rounded-3xl border border-warm-borderSubtle space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-terracotta" /> Auto-Create Folder in Google Drive
+                  </h4>
+                  <p className="text-[11px] text-warm-muted">
+                    Provisions case folder & all 6 subdirectories via Google Drive API
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isProvisioningDrive}
+                  onClick={async () => {
+                    setIsProvisioningDrive(true);
+                    await provisionCaseInGoogleDrive(selectedCase.id);
+                    setIsProvisioningDrive(false);
+                    setIsDriveEditOpen(false);
+                  }}
+                  className="capsule-btn-dark text-xs shrink-0"
+                >
+                  <span>{isProvisioningDrive ? 'Creating...' : 'Auto-Provision'}</span>
+                  <div className="knob"><FolderTree className="w-3.5 h-3.5 text-white" /></div>
+                </button>
+              </div>
+            </div>
+
+            {/* Manual Link/ID Input */}
+            <form onSubmit={handleSaveDriveLink} className="space-y-3.5 pt-1">
               <div>
                 <label className="block text-xs font-semibold text-warm-graphite mb-1.5">
-                  Google Drive Folder URL
+                  Or Paste Google Drive Folder Link or Folder ID
                 </label>
                 <input
-                  type="url"
+                  type="text"
                   required
                   value={customDriveInput}
                   onChange={(e) => setCustomDriveInput(e.target.value)}
-                  placeholder="https://drive.google.com/drive/folders/..."
+                  placeholder="https://drive.google.com/drive/folders/1w7uR4K8yP... or raw ID"
                   className="w-full capsule-input text-xs font-mono"
                 />
+                {customDriveInput && (
+                  <p className="text-[11px] text-warm-muted mt-1 font-mono">
+                    {extractDriveFolderId(customDriveInput) 
+                      ? `✓ Valid Google Drive Folder ID detected: ${extractDriveFolderId(customDriveInput)}`
+                      : 'ℹ Note: Please paste a link containing a real Google Drive ID'}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center justify-between text-[11px] text-warm-muted">
-                <span>Want an auto-generated Drive search link?</span>
-                <button
-                  type="button"
-                  onClick={handleGenerateSearchLink}
-                  className="text-terracotta font-semibold hover:underline"
+                <span>Want to open your Google Drive?</span>
+                <a
+                  href="https://drive.google.com/drive/my-drive"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-terracotta font-semibold hover:underline inline-flex items-center gap-1"
                 >
-                  Generate Search URL
-                </button>
+                  <ExternalLink className="w-3 h-3" /> Open My Drive
+                </a>
               </div>
-
-              {customDriveInput && (
-                <div className="pt-1">
-                  <a
-                    href={customDriveInput}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs font-semibold text-terracotta hover:underline inline-flex items-center gap-1"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Test opening this Drive link in new tab
-                  </a>
-                </div>
-              )}
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-warm-borderSubtle/60">
                 <button

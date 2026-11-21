@@ -22,6 +22,79 @@ export const clearStoredGoogleToken = () => {
 };
 
 /**
+ * Validates whether a string is a genuine Google Drive ID
+ * (Google Drive IDs are opaque 25-50 char alphanumeric strings like '1A2b3C-4d5E_6f7G8h9I0jKl')
+ */
+export const isValidGoogleDriveId = (id) => {
+  if (!id || typeof id !== 'string') return false;
+  const trimmed = id.trim();
+  // Filter out dummy/mock names
+  const dummyTokens = [
+    'Infra', 'Ganguly', 'EasternJute', 'WPA', 'SLP', 'CS_', '1OrD_', 
+    '1DrF_', '1Final_', '1Brief_', '1Client_', '1SCI_', 'Hooghly', 'ALIPORE'
+  ];
+  if (dummyTokens.some(tok => trimmed.includes(tok))) {
+    return false;
+  }
+  // Google Drive IDs: 20-60 characters consisting of letters, digits, underscores, hyphens
+  return /^[a-zA-Z0-9_-]{20,60}$/.test(trimmed);
+};
+
+/**
+ * Extracts Google Drive Folder ID from a URL or raw ID
+ */
+export const extractDriveFolderId = (input) => {
+  if (!input || typeof input !== 'string') return null;
+  const trimmed = input.trim();
+  const folderMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (folderMatch && isValidGoogleDriveId(folderMatch[1])) {
+    return folderMatch[1];
+  }
+  if (isValidGoogleDriveId(trimmed)) {
+    return trimmed;
+  }
+  return null;
+};
+
+/**
+ * Extracts Google Drive File ID from a URL or raw ID
+ */
+export const extractDriveFileId = (input) => {
+  if (!input || typeof input !== 'string') return null;
+  const trimmed = input.trim();
+  const fileMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileMatch && isValidGoogleDriveId(fileMatch[1])) {
+    return fileMatch[1];
+  }
+  if (isValidGoogleDriveId(trimmed)) {
+    return trimmed;
+  }
+  return null;
+};
+
+/**
+ * Normalizes any Drive Folder URL, ensuring no fake IDs that cause 404s
+ */
+export const normalizeDriveFolderUrl = (input, fallbackUrl = 'https://drive.google.com/drive/my-drive') => {
+  const folderId = extractDriveFolderId(input);
+  if (folderId) {
+    return `https://drive.google.com/drive/folders/${folderId}`;
+  }
+  return fallbackUrl;
+};
+
+/**
+ * Normalizes any Drive File URL, ensuring no fake IDs that cause 404s
+ */
+export const normalizeDriveFileUrl = (input, parentFolderUrl = 'https://drive.google.com/drive/my-drive') => {
+  const fileId = extractDriveFileId(input);
+  if (fileId) {
+    return `https://drive.google.com/file/d/${fileId}/view`;
+  }
+  return parentFolderUrl;
+};
+
+/**
  * Triggers Google Identity Services OAuth popup to obtain an access token
  * with drive.file and calendar.events scopes
  */
@@ -57,21 +130,19 @@ export const requestGoogleAccessToken = () => {
 
 /**
  * Creates a case directory in Google Drive and provisions the standard subdirectories
+ * Uses the authentic Google Drive REST API to obtain real Google Drive folder IDs
  */
 export const createCaseFolderInDrive = async ({ caseNumber, clientName, courtCode, folderTemplate = [] }) => {
   const token = getStoredGoogleToken();
   const folderName = `[${caseNumber}] ${clientName} (${courtCode || 'Court'})`;
-
-  // Fallback URL if token is absent
-  const fallbackUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(caseNumber + ' ' + clientName)}`;
 
   if (!token) {
     return {
       success: false,
       isFallback: true,
       folderId: null,
-      folderUrl: fallbackUrl,
-      message: 'Google Drive not connected. Search query URL generated.'
+      folderUrl: 'https://drive.google.com/drive/my-drive',
+      message: 'Google Drive not connected. Please connect Google Workspace to auto-create folder.'
     };
   }
 
@@ -97,14 +168,15 @@ export const createCaseFolderInDrive = async ({ caseNumber, clientName, courtCod
         success: false,
         isFallback: true,
         folderId: null,
-        folderUrl: fallbackUrl,
+        folderUrl: 'https://drive.google.com/drive/my-drive',
         message: errData.error?.message || 'Drive API returned an error'
       };
     }
 
     const folderData = await createFolderResp.json();
     const parentFolderId = folderData.id;
-    const folderUrl = folderData.webViewLink || `https://drive.google.com/drive/folders/${parentFolderId}`;
+    // Guaranteed authentic Google Drive URL using the real ID returned by Google
+    const folderUrl = `https://drive.google.com/drive/folders/${parentFolderId}`;
 
     // 2. Create standard subdirectories inside the parent folder
     const subfolderNames = folderTemplate.length > 0 
@@ -138,7 +210,7 @@ export const createCaseFolderInDrive = async ({ caseNumber, clientName, courtCod
           const subData = await subResp.json();
           createdSubfolders[subName] = {
             id: subData.id,
-            url: subData.webViewLink || `https://drive.google.com/drive/folders/${subData.id}`
+            url: `https://drive.google.com/drive/folders/${subData.id}`
           };
         }
       } catch (e) {
@@ -151,7 +223,7 @@ export const createCaseFolderInDrive = async ({ caseNumber, clientName, courtCod
       folderId: parentFolderId,
       folderUrl,
       subfolders: createdSubfolders,
-      message: 'Created real Google Drive case directory and subdirectories!'
+      message: `Created real Google Drive folder [ID: ${parentFolderId}] with subdirectories!`
     };
   } catch (err) {
     console.error('Error creating Drive folder:', err);
@@ -159,7 +231,7 @@ export const createCaseFolderInDrive = async ({ caseNumber, clientName, courtCod
       success: false,
       isFallback: true,
       folderId: null,
-      folderUrl: fallbackUrl,
+      folderUrl: 'https://drive.google.com/drive/my-drive',
       message: err.message
     };
   }

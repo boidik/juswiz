@@ -87,6 +87,16 @@ export const DocumentVault = ({ targetCaseId, onOpenUpload, onOpenShareBrief }) 
               <div className="knob"><DownloadCloud className="w-3.5 h-3.5 text-white" /></div>
             </button>
 
+            <a
+              href={targetCase?.driveFolderUrl || 'https://drive.google.com/drive/my-drive'}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-pill bg-white hover:bg-warm-sand/50 text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
+              title="Open Case Google Drive Folder"
+            >
+              <FolderTree className="w-3.5 h-3.5 text-terracotta" /> Open in Drive
+            </a>
+
             <button
               onClick={onOpenShareBrief}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-pill bg-white hover:bg-warm-sand/40 text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
@@ -210,9 +220,10 @@ export const DocumentVault = ({ targetCaseId, onOpenUpload, onOpenShareBrief }) 
                   href={doc.driveUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3.5 py-1.5 rounded-pill border border-warm-borderSubtle hover:bg-white text-xs font-medium text-warm-graphite flex items-center gap-1.5 transition-colors"
+                  className="px-3.5 py-1.5 rounded-pill border border-warm-borderSubtle hover:bg-white text-xs font-medium text-warm-graphite flex items-center gap-1.5 transition-colors shadow-xs"
                 >
-                  <ExternalLink className="w-3.5 h-3.5 text-terracotta" /> View in Drive
+                  <ExternalLink className="w-3.5 h-3.5 text-terracotta" />
+                  <span>{doc.hasRealFileLink ? 'View File in Drive' : 'View in Case Drive'}</span>
                 </a>
 
                 <button

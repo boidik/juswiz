@@ -32,7 +32,12 @@ import {
   uploadFileToDrive,
   createGoogleCalendarMeeting,
   buildGmailWebUrl,
-  buildMailtoUrl
+  buildMailtoUrl,
+  isValidGoogleDriveId,
+  extractDriveFolderId,
+  extractDriveFileId,
+  normalizeDriveFolderUrl,
+  normalizeDriveFileUrl
 } from '../services/googleWorkspace';
 
 const AppContext = createContext(null);
@@ -185,7 +190,20 @@ export const AppProvider = ({ children }) => {
     const unsubCases = onSnapshot(collection(db, 'cases'), (snap) => {
       const list = [];
       snap.forEach(d => {
-        list.push({ id: d.id, ...d.data() });
+        const data = d.data();
+        const rawDriveUrl = data.driveFolderUrl || '';
+        const realFolderId = extractDriveFolderId(rawDriveUrl) || (isValidGoogleDriveId(data.driveFolderId) ? data.driveFolderId : null);
+        const cleanDriveUrl = realFolderId 
+          ? `https://drive.google.com/drive/folders/${realFolderId}`
+          : (systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive');
+
+        list.push({ 
+          id: d.id, 
+          ...data,
+          driveFolderId: realFolderId,
+          driveFolderUrl: cleanDriveUrl,
+          hasRealDriveFolder: Boolean(realFolderId)
+        });
       });
       setCases(list);
       if (list.length > 0 && !selectedCaseId) {
@@ -193,19 +211,29 @@ export const AppProvider = ({ children }) => {
       }
     });
     return () => unsubCases();
-  }, [selectedCaseId]);
+  }, [selectedCaseId, systemConfig.firmBranding?.masterDriveUrl]);
 
   // 6. Live Subscription to Documents Collection
   useEffect(() => {
     const unsubDocs = onSnapshot(collection(db, 'documents'), (snap) => {
       const list = [];
       snap.forEach(d => {
-        list.push({ id: d.id, ...d.data() });
+        const data = d.data();
+        const rawFileUrl = data.driveUrl || '';
+        const realFileId = extractDriveFileId(rawFileUrl) || (isValidGoogleDriveId(data.driveFileId) ? data.driveFileId : null);
+
+        list.push({ 
+          id: d.id, 
+          ...data,
+          driveFileId: realFileId,
+          driveUrl: realFileId ? `https://drive.google.com/file/d/${realFileId}/view` : (systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive'),
+          hasRealFileLink: Boolean(realFileId)
+        });
       });
       setDocuments(list);
     });
     return () => unsubDocs();
-  }, []);
+  }, [systemConfig.firmBranding?.masterDriveUrl]);
 
   // 7. Live Subscription to Tasks Collection
   useEffect(() => {
@@ -413,20 +441,31 @@ export const AppProvider = ({ children }) => {
       const court = (systemConfig.courts || []).find(c => c.code === caseData.courtCode) || { name: 'Court' };
       const folderSlug = `${caseData.courtCode}_${caseData.caseNumber.replace(/[\/\s]/g, '_')}_${caseData.clientName.slice(0, 15).replace(/[\s]/g, '')}`;
 
-      // Coordinate with Google Drive API
-      let effectiveDriveUrl = (caseData.driveFolderUrl || '').trim();
+      let effectiveDriveUrl = null;
       let driveFolderId = null;
 
-      if (!effectiveDriveUrl || !effectiveDriveUrl.startsWith('http')) {
+      // 1. Check if user provided an explicit Drive URL or Folder ID
+      const userFolderId = extractDriveFolderId(caseData.driveFolderUrl);
+      if (userFolderId) {
+        driveFolderId = userFolderId;
+        effectiveDriveUrl = `https://drive.google.com/drive/folders/${userFolderId}`;
+      } else if (isGoogleConnected) {
+        // 2. If Google Workspace connected, call Google Drive API to create the real folder and get genuine Folder ID
         const driveResult = await createCaseFolderInDrive({
           caseNumber: caseData.caseNumber,
           clientName: caseData.clientName,
           courtCode: caseData.courtCode,
           folderTemplate: systemConfig.driveFolderTemplate || []
         });
+        if (driveResult.folderId) {
+          driveFolderId = driveResult.folderId;
+          effectiveDriveUrl = `https://drive.google.com/drive/folders/${driveResult.folderId}`;
+        }
+      }
 
-        effectiveDriveUrl = driveResult.folderUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(caseData.caseNumber + ' ' + caseData.clientName)}`;
-        driveFolderId = driveResult.folderId || null;
+      // If not yet linked, use masterDriveUrl or my-drive
+      if (!effectiveDriveUrl) {
+        effectiveDriveUrl = systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive';
       }
 
       const newCaseRecord = {
@@ -463,7 +502,7 @@ export const AppProvider = ({ children }) => {
 
       const docRef = await addDoc(collection(db, 'cases'), newCaseRecord);
       setSelectedCaseId(docRef.id);
-      showToast(`Case ${caseData.caseNumber} registered & Google Drive directory linked!`);
+      showToast(`Case ${caseData.caseNumber} registered! Drive directory configured.`);
       return { id: docRef.id, ...newCaseRecord };
     } catch (err) {
       console.error(err);
@@ -481,13 +520,63 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const updateCaseDriveLink = async (caseId, newDriveUrl) => {
+  const updateCaseDriveLink = async (caseId, input) => {
     try {
-      await updateDoc(doc(db, 'cases', caseId), { driveFolderUrl: newDriveUrl.trim() });
-      showToast('Google Drive folder link updated!');
+      const folderId = extractDriveFolderId(input);
+      let newDriveUrl;
+      if (folderId) {
+        newDriveUrl = `https://drive.google.com/drive/folders/${folderId}`;
+      } else {
+        newDriveUrl = systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive';
+      }
+      await updateDoc(doc(db, 'cases', caseId), { 
+        driveFolderUrl: newDriveUrl,
+        driveFolderId: folderId || null
+      });
+      if (folderId) {
+        showToast(`Linked authentic Google Drive Folder (ID: ${folderId})!`);
+      } else {
+        showToast('Updated Google Drive link.');
+      }
     } catch (err) {
       console.error(err);
       showToast(err.message, 'error');
+    }
+  };
+
+  const provisionCaseInGoogleDrive = async (caseId) => {
+    try {
+      const targetCase = cases.find(c => c.id === caseId);
+      if (!targetCase) return { success: false, message: 'Case not found' };
+
+      if (!isGoogleConnected) {
+        const connectRes = await connectGoogleWorkspace();
+        if (!connectRes?.success) return { success: false, message: 'Google authorization required' };
+      }
+
+      showToast('Creating case folder & subdirectories in Google Drive...');
+      const result = await createCaseFolderInDrive({
+        caseNumber: targetCase.caseNumber,
+        clientName: targetCase.clientName,
+        courtCode: targetCase.courtCode,
+        folderTemplate: systemConfig.driveFolderTemplate || []
+      });
+
+      if (result.success && result.folderId) {
+        await updateDoc(doc(db, 'cases', caseId), {
+          driveFolderUrl: result.folderUrl,
+          driveFolderId: result.folderId
+        });
+        showToast(`Google Drive folder created! ID: ${result.folderId}`);
+        return { success: true, folderId: result.folderId, folderUrl: result.folderUrl };
+      } else {
+        showToast(result.message || 'Could not create Drive folder.', 'error');
+        return { success: false, message: result.message };
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Google Drive error: ' + err.message, 'error');
+      return { success: false, message: err.message };
     }
   };
 
@@ -813,6 +902,7 @@ export const AppProvider = ({ children }) => {
         createCase,
         updateCase,
         updateCaseDriveLink,
+        provisionCaseInGoogleDrive,
         uploadDocument,
         createTask,
         updateTaskStatus,

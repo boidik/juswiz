@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { X, FolderPlus, CheckCircle2, Building2, User, Link2, ArrowRight, FolderTree, ExternalLink, Sparkles } from 'lucide-react';
+import { extractDriveFolderId } from '../../services/googleWorkspace';
 
 export const CaseRegistrationModal = ({ isOpen, onClose }) => {
   const { systemConfig, users, createCase, isGoogleConnected, connectGoogleWorkspace } = useApp();
@@ -260,12 +261,19 @@ export const CaseRegistrationModal = ({ isOpen, onClose }) => {
                 </div>
 
                 <input
-                  type="url"
+                  type="text"
                   value={driveFolderUrl}
                   onChange={(e) => setDriveFolderUrl(e.target.value)}
-                  placeholder="https://drive.google.com/drive/folders/YOUR_FOLDER_ID (Leave blank for automatic provisioning)"
+                  placeholder="https://drive.google.com/drive/folders/1w7uR4K8yP... or folder ID"
                   className="w-full capsule-input text-xs font-mono"
                 />
+                {driveFolderUrl && (
+                  <p className="text-[11px] text-warm-muted font-mono">
+                    {extractDriveFolderId(driveFolderUrl) 
+                      ? `✓ Valid Google Drive Folder ID: ${extractDriveFolderId(driveFolderUrl)}` 
+                      : 'ℹ Paste a link with an authentic Google Drive folder ID'}
+                  </p>
+                )}
 
                 <div className="flex flex-wrap items-center justify-between text-[11px] text-warm-muted gap-2 pt-0.5">
                   <span>
