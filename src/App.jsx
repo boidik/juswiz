@@ -7,7 +7,7 @@ import { StaffConsole } from './components/staff_console/StaffConsole';
 import { NotificationDrawer } from './components/common/NotificationDrawer';
 import { AuthModal } from './components/common/AuthModal';
 import { Toast } from './components/common/Toast';
-import { ShieldCheck, BarChart3, Briefcase, Lock, Sparkles } from 'lucide-react';
+import { ShieldCheck, BarChart3, Briefcase, Lock, Sparkles, ArrowRight } from 'lucide-react';
 
 function AppContent() {
   const { 
@@ -21,10 +21,14 @@ function AppContent() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafd]">
+      <div className="min-h-screen flex items-center justify-center bg-[#F6F2EA]">
         <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-3 border-material-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-xs font-semibold text-neutral-600">Connecting to Firebase Cloud Database...</p>
+          <div className="w-12 h-12 rounded-full sun-gradient-circle animate-spin mx-auto flex items-center justify-center shadow-amber-glow">
+            <div className="w-8 h-8 rounded-full bg-[#F6F2EA]" />
+          </div>
+          <p className="text-xs font-semibold text-warm-graphite tracking-tight font-display">
+            Connecting to Firebase Cloud Database...
+          </p>
         </div>
       </div>
     );
@@ -33,46 +37,54 @@ function AppContent() {
   const isPending = currentUser && currentUser.status === 'PENDING';
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f8fafd] text-[#1b1b1f]">
+    <div className="min-h-screen flex flex-col bg-[#F6F2EA] text-[#161618] relative z-10">
       
-      {/* Top App Bar */}
+      {/* Top Floating App Bar */}
       <Header />
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         
         {!currentUser ? (
-          // Unauthenticated Gateway
-          <div className="max-w-md mx-auto my-12 p-8 bg-white rounded-m3-2xl shadow-m3-2 border border-neutral-200 text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-blue-100 text-material-primary flex items-center justify-center mx-auto">
-              <Lock className="w-7 h-7" />
+          // Unauthenticated Luxury Gateway (Pinterest sample aesthetic)
+          <div className="max-w-md mx-auto my-12 p-8 glass-panel-elevated rounded-4xl border border-white/95 text-center space-y-4 shadow-[0_25px_60px_-15px_rgba(160,140,120,0.3)]">
+            <div className="w-16 h-16 rounded-full sun-gradient-circle text-white flex items-center justify-center mx-auto shadow-amber-glow">
+              <Lock className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-xl font-bold text-neutral-900">Litigation Gateway Secured</h2>
-            <p className="text-xs text-neutral-600 leading-relaxed">
-              Welcome to {systemConfig.firmBranding?.firmName || 'JurisFlow'}. Access to active legal case dockets, pleadings, and orders is restricted to authorized counsel and practice personnel.
+            <h2 className="text-2xl font-bold text-warm-obsidian font-display tracking-tight">
+              Litigation Gateway Secured
+            </h2>
+            <p className="text-xs text-warm-graphite leading-relaxed">
+              Welcome to <strong>{systemConfig.firmBranding?.firmName || 'JurisFlow'}</strong>. Access to ongoing dockets, court filings, and order sheets is reserved for authorized counsel.
             </p>
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="w-full py-2.5 px-4 bg-material-primary hover:bg-blue-700 text-white font-medium text-xs rounded-m3-full shadow-xs transition-all"
-            >
-              Sign In with Email or Google Workspace
-            </button>
+            <div className="pt-2">
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="capsule-btn-dark text-xs mx-auto"
+              >
+                <span>Sign In to Console</span>
+                <div className="knob"><ArrowRight className="w-3.5 h-3.5 text-white" /></div>
+              </button>
+            </div>
           </div>
         ) : isPending ? (
           // Account Pending Approval Screen
-          <div className="max-w-md mx-auto my-12 p-8 bg-white rounded-m3-2xl shadow-m3-2 border border-amber-200 text-center space-y-4">
-            <div className="w-14 h-14 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto animate-pulse">
-              <ShieldCheck className="w-7 h-7" />
+          <div className="max-w-md mx-auto my-12 p-8 glass-panel rounded-4xl border border-warm-borderSubtle text-center space-y-4">
+            <div className="w-16 h-16 rounded-full sun-gradient-circle text-white flex items-center justify-center mx-auto shadow-amber-glow">
+              <ShieldCheck className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-xl font-bold text-neutral-900">Registration Pending Approval</h2>
-            <p className="text-xs text-neutral-600 leading-relaxed">
-              Your account has been submitted to the Software Admin for review. Once your Bar Council enrolment is verified, access to your console will be unlocked automatically.
+            <h2 className="text-2xl font-bold text-warm-obsidian font-display tracking-tight">
+              Awaiting Practice Verification
+            </h2>
+            <p className="text-xs text-warm-graphite leading-relaxed">
+              Your registration has been forwarded to the Software Admin for review. Once verified, access to your counsel console will activate automatically.
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-neutral-800 text-white text-xs font-medium rounded-m3-full hover:bg-neutral-900 transition-all"
+              className="capsule-btn-dark text-xs mx-auto"
             >
-              Check Approval Status
+              <span>Check Approval Status</span>
+              <div className="knob"><ArrowRight className="w-3.5 h-3.5 text-white" /></div>
             </button>
           </div>
         ) : (
@@ -86,20 +98,20 @@ function AppContent() {
 
       </main>
 
-      {/* Interactive Console Switcher for Authorized Admins */}
+      {/* Floating Bottom Console Switcher for Authorized Admins */}
       {currentUser && (currentUser.role === 'SOFTWARE_ADMIN' || currentUser.role === 'MANAGER_ADMIN') && (
-        <aside aria-label="Console switcher" className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 bg-neutral-900/90 backdrop-blur-md text-white px-3 sm:px-4 py-2 rounded-full shadow-m3-3 border border-neutral-700/80 flex items-center gap-2 sm:gap-3 text-xs">
-          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider pr-1">
-            <Sparkles className="w-3.5 h-3.5 text-yellow-400" /> Switch View:
+        <aside aria-label="Console switcher" className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 bg-[#141416]/95 backdrop-blur-xl text-white px-3 sm:px-4 py-2 rounded-pill shadow-obsidian border border-white/10 flex items-center gap-2 sm:gap-3 text-xs">
+          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-white/50 uppercase tracking-widest pr-1">
+            <Sparkles className="w-3 h-3 text-terracotta-light" /> Switch Console:
           </span>
 
           {currentUser.role === 'SOFTWARE_ADMIN' && (
             <button
               onClick={() => switchRole('SOFTWARE_ADMIN')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
                 currentRole === 'SOFTWARE_ADMIN'
-                  ? 'bg-material-primary text-white shadow-xs'
-                  : 'text-neutral-300 hover:text-white hover:bg-neutral-800'
+                  ? 'bg-terracotta text-white shadow-amber-glow'
+                  : 'text-white/60 hover:text-white hover:bg-white/10'
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5" /> Admin
@@ -108,21 +120,21 @@ function AppContent() {
 
           <button
             onClick={() => switchRole('MANAGER_ADMIN')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
               currentRole === 'MANAGER_ADMIN'
-                ? 'bg-material-primary text-white shadow-xs'
-                : 'text-neutral-300 hover:text-white hover:bg-neutral-800'
-            }`}
+                ? 'bg-terracotta text-white shadow-amber-glow'
+                : 'text-white/60 hover:text-white hover:bg-white/10'
+              }`}
           >
             <BarChart3 className="w-3.5 h-3.5" /> Manager
           </button>
 
           <button
             onClick={() => switchRole('STAFF')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
               currentRole === 'STAFF'
-                ? 'bg-material-primary text-white shadow-xs'
-                : 'text-neutral-300 hover:text-white hover:bg-neutral-800'
+                ? 'bg-terracotta text-white shadow-amber-glow'
+                : 'text-white/60 hover:text-white hover:bg-white/10'
             }`}
           >
             <Briefcase className="w-3.5 h-3.5" /> Staff
@@ -131,12 +143,12 @@ function AppContent() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-neutral-200/80 bg-white py-6 mt-12 text-center text-xs text-neutral-500">
+      <footer className="border-t border-warm-borderSubtle/60 py-8 mt-16 text-center text-xs text-warm-muted">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p>
-            © {new Date().getFullYear()} {systemConfig.firmBranding?.firmName || 'JurisFlow'}. Powered by Firebase Firestore.
+          <p className="font-medium">
+            © {new Date().getFullYear()} {systemConfig.firmBranding?.firmName || 'JurisFlow'}. Warm Minimalist Architecture.
           </p>
-          <p className="flex items-center gap-2">
+          <p className="flex items-center gap-2 text-[11px]">
             <span>Supreme Court of India</span>
             <span>•</span>
             <span>High Court at Calcutta</span>

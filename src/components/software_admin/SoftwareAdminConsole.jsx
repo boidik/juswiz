@@ -7,9 +7,7 @@ import {
   FolderCheck, 
   ExternalLink, 
   ShieldCheck, 
-  Building2, 
-  Sparkles,
-  Layers
+  ArrowRight
 } from 'lucide-react';
 import { CaseRegistrationModal } from './CaseRegistrationModal';
 import { SystemCustomizer } from './SystemCustomizer';
@@ -28,80 +26,82 @@ export const SoftwareAdminConsole = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-m3-md bg-purple-100 text-purple-700">
-              <ShieldCheck className="w-5 h-5" />
+            <span className="p-2 rounded-full sun-gradient-circle text-white shadow-amber-glow">
+              <ShieldCheck className="w-5 h-5 text-white" />
             </span>
-            <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-warm-obsidian tracking-tight font-display">
               Software Administrator Console
             </h1>
           </div>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">
-            Configure system parameters, provision Google Drive directories, approve team access, and customize firm branding.
+          <p className="text-xs sm:text-sm text-warm-muted mt-1">
+            System parameter customization, Google Drive provisioning, staff approvals, and firm branding.
           </p>
         </div>
 
         <button
           onClick={() => setIsRegisterModalOpen(true)}
-          className="px-4 py-2.5 bg-material-primary hover:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-m3-full shadow-sm flex items-center gap-2 transition-all self-start sm:self-auto"
+          className="capsule-btn-dark text-xs sm:text-sm self-start sm:self-auto"
         >
-          <FolderPlus className="w-4 h-4" /> Register New Case & Provision Drive
+          <span>Register Case & Drive</span>
+          <div className="knob"><FolderPlus className="w-4 h-4 text-white" /></div>
         </button>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards (Frosted & Obsidian) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="p-4 rounded-m3-xl bg-white border border-neutral-200 shadow-xs">
-          <p className="text-xs text-neutral-500 font-medium">Registered Cases</p>
-          <p className="text-xl sm:text-2xl font-bold text-neutral-900 mt-1">{cases.length}</p>
-          <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
-            <FolderCheck className="w-3 h-3" /> Drive Directories Synced
+        <div className="p-5 rounded-3xl glass-panel relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-24 h-24 rounded-full sun-gradient-circle opacity-15 blur-lg pointer-events-none" />
+          <p className="text-xs text-warm-muted font-medium">Registered Cases</p>
+          <p className="text-2xl font-black text-warm-obsidian mt-1 font-display">{cases.length}</p>
+          <span className="text-[10px] text-terracotta font-semibold flex items-center gap-1 mt-1">
+            <FolderCheck className="w-3 h-3" /> Drive Provisioned
           </span>
         </div>
 
-        <div className="p-4 rounded-m3-xl bg-white border border-neutral-200 shadow-xs">
-          <p className="text-xs text-neutral-500 font-medium">Pending Approvals</p>
-          <p className="text-xl sm:text-2xl font-bold text-amber-600 mt-1">{pendingUsers.length}</p>
-          <span className="text-[10px] text-neutral-500 font-medium mt-1 block">
-            Awaiting admin sign-off
+        <div className="p-5 rounded-3xl obsidian-card">
+          <p className="text-xs text-white/60 font-medium">Pending Approvals</p>
+          <p className="text-2xl font-black text-terracotta mt-1 font-display">{pendingUsers.length}</p>
+          <span className="text-[10px] text-white/40 font-medium mt-1 block">
+            Awaiting verification
           </span>
         </div>
 
-        <div className="p-4 rounded-m3-xl bg-white border border-neutral-200 shadow-xs">
-          <p className="text-xs text-neutral-500 font-medium">Active Forums</p>
-          <p className="text-xl sm:text-2xl font-bold text-neutral-900 mt-1">{systemConfig.courts.length}</p>
-          <span className="text-[10px] text-neutral-500 font-medium mt-1 block">
+        <div className="p-5 rounded-3xl glass-panel">
+          <p className="text-xs text-warm-muted font-medium">Active Forums</p>
+          <p className="text-2xl font-black text-warm-obsidian mt-1 font-display">{systemConfig.courts?.length || 0}</p>
+          <span className="text-[10px] text-warm-muted font-medium mt-1 block">
             High Courts, SCI & Tribunals
           </span>
         </div>
 
-        <div className="p-4 rounded-m3-xl bg-white border border-neutral-200 shadow-xs">
-          <p className="text-xs text-neutral-500 font-medium">Active Personnel</p>
-          <p className="text-xl sm:text-2xl font-bold text-neutral-900 mt-1">{users.length}</p>
-          <span className="text-[10px] text-purple-600 font-semibold mt-1 block">
-            Litigators & Clerks
+        <div className="p-5 rounded-3xl glass-panel">
+          <p className="text-xs text-warm-muted font-medium">Active Staff</p>
+          <p className="text-2xl font-black text-warm-obsidian mt-1 font-display">{users.length}</p>
+          <span className="text-[10px] text-emerald-600 font-semibold mt-1 block">
+            Advocates & Clerks
           </span>
         </div>
       </div>
 
       {/* Sub-tab Navigation */}
-      <div className="flex border-b border-neutral-200 space-x-2">
+      <div className="flex border-b border-warm-borderSubtle space-x-2">
         <button
           onClick={() => setActiveSubTab('CASES')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
             activeSubTab === 'CASES'
-              ? 'border-material-primary text-material-primary font-bold'
-              : 'border-transparent text-neutral-600 hover:text-neutral-900'
+              ? 'border-terracotta text-terracotta font-bold'
+              : 'border-transparent text-warm-muted hover:text-warm-obsidian'
           }`}
         >
-          <FolderCheck className="w-4 h-4" /> Registered Cases & Drive Directories
+          <FolderCheck className="w-4 h-4" /> Provisioned Cases ({cases.length})
         </button>
 
         <button
           onClick={() => setActiveSubTab('CUSTOMIZER')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
             activeSubTab === 'CUSTOMIZER'
-              ? 'border-material-primary text-material-primary font-bold'
-              : 'border-transparent text-neutral-600 hover:text-neutral-900'
+              ? 'border-terracotta text-terracotta font-bold'
+              : 'border-transparent text-warm-muted hover:text-warm-obsidian'
           }`}
         >
           <Settings className="w-4 h-4" /> Zero-Code Customizer
@@ -109,15 +109,15 @@ export const SoftwareAdminConsole = () => {
 
         <button
           onClick={() => setActiveSubTab('APPROVALS')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
             activeSubTab === 'APPROVALS'
-              ? 'border-material-primary text-material-primary font-bold'
-              : 'border-transparent text-neutral-600 hover:text-neutral-900'
+              ? 'border-terracotta text-terracotta font-bold'
+              : 'border-transparent text-warm-muted hover:text-warm-obsidian'
           }`}
         >
-          <Users className="w-4 h-4" /> User Approvals
+          <Users className="w-4 h-4" /> Staff Approvals
           {pendingUsers.length > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500 text-white font-bold">
+            <span className="px-2 py-0.2 rounded-full text-[10px] bg-terracotta text-white font-bold">
               {pendingUsers.length}
             </span>
           )}
@@ -126,65 +126,72 @@ export const SoftwareAdminConsole = () => {
 
       {/* Tab 1: Registered Cases List with Drive Links */}
       {activeSubTab === 'CASES' && (
-        <div className="bg-white rounded-m3-2xl shadow-m3-1 border border-neutral-200 overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-neutral-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="glass-panel rounded-3xl overflow-hidden">
+          <div className="p-5 border-b border-warm-borderSubtle/60 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-neutral-900">Provisioned Case Directory Trees</h3>
-              <p className="text-xs text-neutral-500">
+              <h3 className="text-base font-bold text-warm-obsidian font-display">Provisioned Case Directory Trees</h3>
+              <p className="text-xs text-warm-muted">
                 Every case holds an automated folder structure in the linked Google Drive workspace.
               </p>
             </div>
             <button
               onClick={() => setIsRegisterModalOpen(true)}
-              className="px-3.5 py-1.5 text-xs font-medium text-material-primary bg-blue-50 hover:bg-blue-100 rounded-m3-full border border-blue-200 transition-colors flex items-center gap-1.5"
+              className="capsule-btn-dark text-xs"
             >
-              <FolderPlus className="w-3.5 h-3.5" /> New Case Registration
+              <span>New Case</span>
+              <div className="knob"><FolderPlus className="w-3.5 h-3.5 text-white" /></div>
             </button>
           </div>
 
-          <div className="divide-y divide-neutral-100">
-            {cases.map(c => (
-              <div key={c.id} className="p-4 sm:p-5 hover:bg-neutral-50/70 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900">
-                      {c.caseNumber}
-                    </span>
-                    <span className="text-xs font-medium text-neutral-500">
-                      {c.courtName}
-                    </span>
-                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Drive Provisioned
-                    </span>
-                  </div>
-                  
-                  <h4 className="text-sm font-bold text-neutral-900">{c.title}</h4>
-                  
-                  <p className="text-xs text-neutral-500 font-mono flex items-center gap-1">
-                    📁 {c.driveFolderPath}
-                  </p>
+          <div className="divide-y divide-warm-borderSubtle/60">
+            {cases.length === 0 ? (
+              <p className="py-12 text-center text-xs text-warm-muted">No cases registered yet.</p>
+            ) : (
+              cases.map(c => (
+                <div key={c.id} className="p-5 hover:bg-white/60 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-bold px-3 py-1 rounded-pill bg-warm-sand/50 text-warm-obsidian border border-warm-borderSubtle">
+                        {c.caseNumber}
+                      </span>
+                      <span className="text-xs font-medium text-warm-graphite">
+                        {c.courtName}
+                      </span>
+                      <span className="text-[10px] font-semibold uppercase px-2.5 py-0.5 rounded-pill bg-emerald-500/10 text-emerald-700">
+                        Drive Synced
+                      </span>
+                    </div>
+                    
+                    <h4 className="text-sm font-bold text-warm-obsidian font-display">{c.title}</h4>
+                    
+                    <p className="text-xs text-warm-muted font-mono flex items-center gap-1">
+                      📁 {c.driveFolderPath}
+                    </p>
 
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-600 pt-1">
-                    <span>Client: <strong className="text-neutral-800">{c.clientName}</strong></span>
-                    <span>•</span>
-                    <span>Lead: <strong className="text-neutral-800">{c.leadCounsel}</strong></span>
-                    <span>•</span>
-                    <span>CNR: <strong className="font-mono text-neutral-700">{c.cnrNumber}</strong></span>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-warm-graphite pt-1">
+                      <span>Client: <strong className="text-warm-obsidian">{c.clientName}</strong></span>
+                      <span>•</span>
+                      <span>Lead: <strong className="text-warm-obsidian">{c.leadCounsel}</strong></span>
+                      <span>•</span>
+                      <span>CNR: <strong className="font-mono text-warm-muted">{c.cnrNumber}</strong></span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {c.driveFolderUrl && (
+                      <a
+                        href={c.driveFolderUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-pill bg-white border border-warm-borderSubtle hover:bg-warm-sand/40 text-xs font-medium text-warm-graphite transition-colors shadow-xs"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-terracotta" /> Open in Drive
+                      </a>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-                  <a
-                    href={c.driveFolderUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-3 py-1.5 rounded-m3-md border border-neutral-300 hover:bg-neutral-100 text-xs text-neutral-700 flex items-center gap-1.5 transition-colors"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 text-blue-600" /> Open in Google Drive
-                  </a>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       )}

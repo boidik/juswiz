@@ -1,12 +1,12 @@
 export const defaultSystemConfig = {
   firmBranding: {
-    firmName: "JurisFlow Legal Practice",
+    firmName: "JurisFlow Practice",
     tagline: "Advocates & Legal Consultants • High Court at Calcutta & Supreme Court",
-    logoUrl: "https://api.iconify.design/material-symbols:balance.svg?color=%230b57d0",
-    faviconUrl: "https://api.iconify.design/material-symbols:balance.svg?color=%230b57d0",
-    primaryColor: "#0b57d0",
-    primaryContainer: "#d3e3fd",
-    headerSubtitle: "Enterprise Litigation & Practice Management",
+    logoUrl: "https://api.iconify.design/material-symbols:balance.svg?color=%23FF6F1F",
+    faviconUrl: "https://api.iconify.design/material-symbols:balance.svg?color=%23FF6F1F",
+    primaryColor: "#FF6F1F",
+    primaryContainer: "#FFE8D9",
+    headerSubtitle: "Warm Minimalist Legal Practice Suite",
   },
   courts: [
     { id: 'c1', code: 'CAL_HC_AS', name: 'Calcutta High Court (Appellate Side)', forumType: 'High Court', state: 'West Bengal', benches: ['Single Bench', 'Division Bench', 'Special Bench'] },

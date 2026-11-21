@@ -8,7 +8,9 @@ import {
   User, 
   LogOut, 
   ChevronDown,
-  LogIn
+  LogIn,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 
 export const Header = () => {
@@ -27,59 +29,49 @@ export const Header = () => {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Determine which consoles this user can switch to
   const actualRole = currentUser?.role || 'STAFF';
   const canAccessAdmin = actualRole === 'SOFTWARE_ADMIN';
   const canAccessManager = actualRole === 'SOFTWARE_ADMIN' || actualRole === 'MANAGER_ADMIN';
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-material-outline-variant/40 shadow-sm transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20 gap-3">
+    <header className="sticky top-0 z-40 px-3 sm:px-6 pt-3 pb-2 transition-all">
+      <div className="max-w-7xl mx-auto glass-panel-elevated rounded-3xl sm:rounded-pill px-4 sm:px-6 py-2.5 sm:py-3 border border-white/80 shadow-[0_10px_35px_-5px_rgba(180,160,140,0.12)]">
+        <div className="flex items-center justify-between gap-3">
           
-          {/* Logo & Firm Name */}
+          {/* Brand Logo & Name */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-m3-lg bg-material-primary-container/60 flex items-center justify-center p-2 border border-material-primary/20 shadow-sm">
-              <img 
-                src={systemConfig.firmBranding?.logoUrl || "https://api.iconify.design/material-symbols:balance.svg?color=%230b57d0"} 
-                alt="Logo" 
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'block';
-                }}
-              />
-              <Briefcase className="w-6 h-6 text-material-primary hidden" />
+            <div className="w-10 h-10 rounded-full sun-gradient-circle flex items-center justify-center p-2 text-white shadow-amber-glow">
+              <Briefcase className="w-5 h-5 text-white" />
             </div>
-            <div className="hidden sm:block">
+            <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-bold tracking-tight text-neutral-900 leading-tight">
-                  {systemConfig.firmBranding?.firmName || 'JurisFlow Legal Practice'}
+                <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-warm-obsidian font-display">
+                  {systemConfig.firmBranding?.firmName || 'JurisFlow'}
                 </h1>
-                <span className="text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  Live Firebase Cloud
+                <span className="hidden md:inline-flex text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-terracotta-soft text-terracotta border border-terracotta/20">
+                  Legal Studio
                 </span>
               </div>
-              <p className="text-xs text-neutral-500 font-medium truncate max-w-xs sm:max-w-md">
-                {systemConfig.firmBranding?.tagline || 'Litigation Practice Management'}
+              <p className="text-[11px] text-warm-muted font-medium truncate max-w-[200px] sm:max-w-xs">
+                {systemConfig.firmBranding?.tagline || 'High Court & Supreme Court'}
               </p>
             </div>
           </div>
 
-          {/* Center Navigation: 3 Consoles Switcher */}
+          {/* Center Capsule Navigation: 3 Consoles */}
           {currentUser && (
-            <nav className="flex items-center p-1 bg-material-surface-container-high/60 rounded-m3-full border border-material-outline-variant/30">
+            <nav className="flex items-center p-1 bg-warm-sand/50 backdrop-blur-md rounded-pill border border-warm-borderSubtle">
               {canAccessAdmin && (
                 <button
                   onClick={() => switchRole('SOFTWARE_ADMIN')}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 rounded-m3-full text-xs sm:text-sm font-medium transition-all ${
+                  className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-pill text-xs font-semibold transition-all ${
                     currentRole === 'SOFTWARE_ADMIN'
-                      ? 'bg-material-primary text-white shadow-sm'
-                      : 'text-neutral-700 hover:text-neutral-900 hover:bg-white/60'
+                      ? 'bg-warm-obsidian text-white shadow-md'
+                      : 'text-warm-graphite hover:text-warm-obsidian hover:bg-white/60'
                   }`}
-                  title="Software Admin Console: Manage settings, drive folders, court masters, user approvals"
+                  title="Software Admin Console"
                 >
-                  <ShieldCheck className="w-4 h-4" />
+                  <ShieldCheck className="w-3.5 h-3.5" />
                   <span>Admin</span>
                 </button>
               )}
@@ -87,47 +79,45 @@ export const Header = () => {
               {canAccessManager && (
                 <button
                   onClick={() => switchRole('MANAGER_ADMIN')}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 rounded-m3-full text-xs sm:text-sm font-medium transition-all ${
+                  className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-pill text-xs font-semibold transition-all ${
                     currentRole === 'MANAGER_ADMIN'
-                      ? 'bg-material-primary text-white shadow-sm'
-                      : 'text-neutral-700 hover:text-neutral-900 hover:bg-white/60'
+                      ? 'bg-warm-obsidian text-white shadow-md'
+                      : 'text-warm-graphite hover:text-warm-obsidian hover:bg-white/60'
                   }`}
-                  title="Manager Admin Console: Master cases board, workflow tracking & task delegation"
+                  title="Manager Admin Console"
                 >
-                  <BarChart3 className="w-4 h-4" />
+                  <BarChart3 className="w-3.5 h-3.5" />
                   <span>Manager</span>
                 </button>
               )}
 
               <button
                 onClick={() => switchRole('STAFF')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 rounded-m3-full text-xs sm:text-sm font-medium transition-all ${
+                className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-pill text-xs font-semibold transition-all ${
                   currentRole === 'STAFF'
-                    ? 'bg-material-primary text-white shadow-sm'
-                    : 'text-neutral-700 hover:text-neutral-900 hover:bg-white/60'
+                    ? 'bg-warm-obsidian text-white shadow-md'
+                    : 'text-warm-graphite hover:text-warm-obsidian hover:bg-white/60'
                 }`}
-                title="Staff Console: Case workspace, file uploads, GMeet, coordinated editing, brief sharing"
+                title="Staff Console"
               >
-                <Briefcase className="w-4 h-4" />
-                <span>Staff Console</span>
+                <Briefcase className="w-3.5 h-3.5" />
+                <span>Staff</span>
               </button>
             </nav>
           )}
 
           {/* Right Action Bar */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2">
             {/* Notification Bell */}
             {currentUser && (
               <button
                 onClick={() => setIsNotificationOpen(true)}
-                className="relative p-2.5 rounded-m3-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
-                title="Notifications & Hearing Reminders"
+                className="relative p-2 rounded-full hover:bg-white text-warm-graphite hover:text-warm-obsidian transition-colors border border-transparent hover:border-warm-borderSubtle"
+                title="Notifications"
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
-                    {unreadCount}
-                  </span>
+                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-terracotta rounded-full ring-2 ring-white animate-pulse" />
                 )}
               </button>
             )}
@@ -137,67 +127,64 @@ export const Header = () => {
               <div className="relative">
                 <button
                   onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                  className="flex items-center gap-2 p-1.5 pr-2.5 rounded-m3-full bg-white hover:bg-neutral-50 border border-neutral-200 transition-all shadow-sm"
+                  className="flex items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-pill bg-white/90 hover:bg-white border border-warm-borderSubtle transition-all shadow-xs"
                 >
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-material-primary-container text-material-primary font-bold text-xs sm:text-sm flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-terracotta to-terracotta-light text-white font-bold text-xs flex items-center justify-center">
                     {(currentUser.name || currentUser.email || 'U').charAt(0).toUpperCase()}
                   </div>
                   <div className="hidden md:block text-left text-xs">
-                    <div className="font-semibold text-neutral-900 truncate max-w-[120px]">
-                      {currentUser.name || currentUser.email.split('@')[0]}
-                    </div>
-                    <div className="text-[10px] text-neutral-500 font-medium uppercase tracking-wider">
-                      {(currentRole || actualRole).replace('_', ' ')}
+                    <div className="font-semibold text-warm-obsidian truncate max-w-[110px]">
+                      {currentUser.name || currentUser.email?.split('@')[0]}
                     </div>
                   </div>
-                  <ChevronDown className="w-3.5 h-3.5 text-neutral-500" />
+                  <ChevronDown className="w-3 h-3 text-warm-muted" />
                 </button>
 
                 {isProfileMenuOpen && (
                   <div 
-                    className="absolute right-0 mt-2 w-64 bg-white rounded-m3-xl shadow-m3-3 border border-neutral-200 p-2 z-50 animate-fade-in"
+                    className="absolute right-0 mt-2 w-64 glass-panel-elevated rounded-3xl p-3 z-50 animate-fade-in border border-white"
                     onMouseLeave={() => setIsProfileMenuOpen(false)}
                   >
-                    <div className="px-3 py-2 border-b border-neutral-100 mb-1">
-                      <p className="text-xs font-semibold text-neutral-900">{currentUser.name}</p>
-                      <p className="text-[11px] text-neutral-500 truncate">{currentUser.email}</p>
-                      <p className="text-[10px] text-blue-600 font-medium mt-0.5">
+                    <div className="px-3 py-2 border-b border-warm-borderSubtle mb-2">
+                      <p className="text-xs font-bold text-warm-obsidian">{currentUser.name}</p>
+                      <p className="text-[11px] text-warm-muted truncate">{currentUser.email}</p>
+                      <span className="inline-block mt-1 text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-terracotta-soft text-terracotta">
                         {currentUser.designation || currentUser.role}
-                      </p>
+                      </span>
                     </div>
 
                     {canAccessAdmin && (
                       <div className="py-1">
-                        <p className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        <p className="px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-warm-muted">
                           Switch View
                         </p>
                         <button
                           onClick={() => { switchRole('SOFTWARE_ADMIN'); setIsProfileMenuOpen(false); }}
-                          className="w-full text-left px-3 py-1.5 text-xs rounded-m3-md hover:bg-blue-50 flex items-center gap-2 text-neutral-700"
+                          className="w-full text-left px-3 py-1.5 text-xs rounded-pill hover:bg-white flex items-center gap-2 text-warm-graphite hover:text-warm-obsidian"
                         >
-                          <ShieldCheck className="w-4 h-4 text-blue-600" /> Software Admin
+                          <ShieldCheck className="w-3.5 h-3.5 text-terracotta" /> Software Admin
                         </button>
                         <button
                           onClick={() => { switchRole('MANAGER_ADMIN'); setIsProfileMenuOpen(false); }}
-                          className="w-full text-left px-3 py-1.5 text-xs rounded-m3-md hover:bg-blue-50 flex items-center gap-2 text-neutral-700"
+                          className="w-full text-left px-3 py-1.5 text-xs rounded-pill hover:bg-white flex items-center gap-2 text-warm-graphite hover:text-warm-obsidian"
                         >
-                          <BarChart3 className="w-4 h-4 text-emerald-600" /> Manager Admin
+                          <BarChart3 className="w-3.5 h-3.5 text-emerald-600" /> Manager Admin
                         </button>
                         <button
                           onClick={() => { switchRole('STAFF'); setIsProfileMenuOpen(false); }}
-                          className="w-full text-left px-3 py-1.5 text-xs rounded-m3-md hover:bg-blue-50 flex items-center gap-2 text-neutral-700"
+                          className="w-full text-left px-3 py-1.5 text-xs rounded-pill hover:bg-white flex items-center gap-2 text-warm-graphite hover:text-warm-obsidian"
                         >
-                          <Briefcase className="w-4 h-4 text-purple-600" /> Staff Console
+                          <Briefcase className="w-3.5 h-3.5 text-terracotta" /> Staff Console
                         </button>
                       </div>
                     )}
 
-                    <div className="border-t border-neutral-100 mt-1 pt-1">
+                    <div className="border-t border-warm-borderSubtle mt-2 pt-2">
                       <button
                         onClick={() => { logout(); setIsProfileMenuOpen(false); }}
-                        className="w-full text-left px-3 py-2 text-xs rounded-m3-md hover:bg-rose-50 flex items-center gap-2 text-rose-600"
+                        className="w-full text-left px-3 py-2 text-xs rounded-pill hover:bg-rose-50 flex items-center gap-2 text-rose-600 font-medium"
                       >
-                        <LogOut className="w-4 h-4" /> Sign Out
+                        <LogOut className="w-3.5 h-3.5" /> Sign Out
                       </button>
                     </div>
                   </div>
@@ -206,9 +193,12 @@ export const Header = () => {
             ) : (
               <button
                 onClick={() => setIsAuthModalOpen(true)}
-                className="px-4 py-2 bg-material-primary hover:bg-blue-700 text-white rounded-m3-full text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+                className="capsule-btn-dark text-xs"
               >
-                <LogIn className="w-4 h-4" /> Sign In
+                <span>Sign In</span>
+                <div className="knob">
+                  <ArrowRight className="w-3 h-3 text-white" />
+                </div>
               </button>
             )}
 

@@ -7,7 +7,7 @@ import {
   Filter, 
   Briefcase, 
   AlertTriangle, 
-  ArrowUpRight,
+  ArrowRight,
   Gavel,
   FolderOpen
 } from 'lucide-react';
@@ -15,7 +15,6 @@ import {
 export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false }) => {
   const { cases, setSelectedCaseId, switchRole, systemConfig } = useApp();
 
-  // If casesList is provided (e.g. staff assigned cases), use it; otherwise use all cases
   const baseCases = casesList || cases;
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,6 +35,15 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
     return matchesSearch && matchesForum && matchesUrgency;
   });
 
+  const formatEditorialDate = (dateString) => {
+    if (!dateString) return { dayOfWeek: 'TBD', dayOfMonth: '--' };
+    const date = new Date(dateString);
+    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
+    const day = date.getDate();
+    const suffix = ["th", "st", "nd", "rd"][((day % 100) - 20) % 10] || ["th", "st", "nd", "rd"][day] || "th";
+    return { dayOfWeek, dayOfMonth: `${day}${suffix}` };
+  };
+
   const getDaysUntilNextDate = (dateString) => {
     if (!dateString) return null;
     const target = new Date(dateString);
@@ -47,49 +55,40 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       
-      {/* Title & Scope Banner */}
-      {customTitle && (
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-bold text-neutral-900">{customTitle}</h3>
-            {isStaffScope && (
-              <p className="text-xs text-neutral-500">
-                Displaying only cases assigned to your docket • Limited to staff execution scope
-              </p>
-            )}
-          </div>
-          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
-            {filteredCases.length} Assigned Matter(s)
-          </span>
-        </div>
-      )}
-
-      {/* Controls & Filter Bar */}
-      <div className="bg-white p-4 rounded-m3-xl shadow-m3-1 border border-neutral-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by Case No., Title, CNR, Advocate or Client..."
-            className="w-full pl-9 pr-3 py-1.5 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-full focus:bg-white focus:outline-none focus:ring-2 focus:ring-material-primary transition-all"
-          />
+      {/* Header & Controls */}
+      <div className="glass-panel rounded-3xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-bold text-warm-obsidian font-display tracking-tight">
+            {customTitle || 'Master Litigation Tracking Board'}
+          </h3>
+          <p className="text-xs text-warm-muted mt-0.5">
+            {isStaffScope 
+              ? 'Docket restricted strictly to your assigned counsel scope'
+              : 'Enterprise cause list schedule, bench listings, and order sheets'}
+          </p>
         </div>
 
-        {/* Filters */}
+        {/* Filter & Search Bar */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <Filter className="w-3.5 h-3.5" /> Forum:
+          {/* Capsule Search */}
+          <div className="relative min-w-[220px]">
+            <Search className="w-3.5 h-3.5 text-warm-muted absolute left-3.5 top-2.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search docket, counsel, CNR..."
+              className="w-full pl-9 pr-3 py-1.5 text-xs capsule-input"
+            />
           </div>
+
+          {/* Forum Capsule Select */}
           <select
             value={selectedForum}
             onChange={(e) => setSelectedForum(e.target.value)}
-            className="px-2.5 py-1 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md font-medium text-neutral-700"
+            className="capsule-input py-1.5 text-xs text-warm-graphite font-medium cursor-pointer"
           >
             <option value="ALL">All Forums ({baseCases.length})</option>
             {systemConfig.courts.map(c => (
@@ -97,120 +96,138 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
             ))}
           </select>
 
+          {/* Urgency Capsule Select */}
           <select
             value={selectedUrgency}
             onChange={(e) => setSelectedUrgency(e.target.value)}
-            className="px-2.5 py-1 text-xs bg-neutral-50 border border-neutral-300 rounded-m3-md font-medium text-neutral-700"
+            className="capsule-input py-1.5 text-xs text-warm-graphite font-medium cursor-pointer"
           >
             <option value="ALL">All Urgencies</option>
             <option value="CRITICAL">Critical (Stay / Urgent)</option>
-            <option value="HIGH">High Urgency</option>
-            <option value="MEDIUM">Medium</option>
+            <option value="HIGH">High Priority</option>
+            <option value="MEDIUM">Standard</option>
           </select>
         </div>
-
       </div>
 
       {/* Cases Cards Grid */}
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filteredCases.length === 0 ? (
-          <div className="bg-white p-12 text-center rounded-m3-xl border border-neutral-200 text-neutral-400">
-            <Briefcase className="w-12 h-12 mx-auto stroke-1 mb-2 opacity-50" />
-            <p className="text-sm font-medium">No cases found in this view</p>
-            <p className="text-xs">
-              {isStaffScope ? 'You have not been assigned to any ongoing matters yet.' : 'Adjust your search query or forum filter.'}
+          <div className="col-span-full glass-panel rounded-4xl p-12 text-center text-warm-muted space-y-2">
+            <Briefcase className="w-10 h-10 mx-auto stroke-1 text-warm-sand" />
+            <p className="text-sm font-semibold text-warm-obsidian font-display">No matters found</p>
+            <p className="text-xs text-warm-muted">
+              {isStaffScope ? 'You have no assigned cases in your docket.' : 'No cases matching the selected filters.'}
             </p>
           </div>
         ) : (
           filteredCases.map(c => {
             const daysLeft = getDaysUntilNextDate(c.nextHearingDate);
+            const isCritical = c.urgency === 'CRITICAL';
+            const { dayOfWeek, dayOfMonth } = formatEditorialDate(c.nextHearingDate);
 
             return (
               <div
                 key={c.id}
-                className="bg-white rounded-m3-xl border border-neutral-200 p-4 sm:p-5 hover:border-blue-300 hover:shadow-m3-2 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                className={`rounded-4xl p-5 sm:p-6 transition-all duration-300 relative overflow-hidden flex flex-col justify-between ${
+                  isCritical 
+                    ? 'obsidian-card hover:shadow-[0_25px_50px_-12px_rgba(20,20,22,0.5)]' 
+                    : 'glass-panel hover:glass-panel-elevated hover:shadow-[0_20px_45px_-10px_rgba(160,140,120,0.18)]'
+                }`}
               >
                 
-                {/* Left: Case Info */}
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200">
+                {/* Background Amber Sun Orb (Pinterest aesthetic) */}
+                <div className="absolute top-2 right-2 w-32 h-32 rounded-full sun-gradient-circle opacity-80 blur-[2px] pointer-events-none -mr-8 -mt-8" />
+                
+                {/* Top Section */}
+                <div className="relative z-10 space-y-3">
+                  
+                  {/* Category Pill & Urgency */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`font-mono text-[11px] font-bold px-3 py-1 rounded-pill ${
+                      isCritical 
+                        ? 'bg-white/10 text-white border border-white/15' 
+                        : 'bg-warm-sand/60 text-warm-obsidian border border-warm-borderSubtle'
+                    }`}>
                       {c.caseNumber}
                     </span>
-                    <span className="text-xs font-medium text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
-                      {c.courtName}
-                    </span>
-                    <span className="text-[10px] text-neutral-500 font-mono">
-                      CNR: {c.cnrNumber}
-                    </span>
 
-                    {c.urgency === 'CRITICAL' && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1 animate-pulse">
-                        <AlertTriangle className="w-3 h-3" /> Critical Hearing
+                    <div className="flex items-center gap-1.5">
+                      {isCritical && (
+                        <span className="px-2.5 py-0.5 rounded-pill text-[10px] font-bold bg-terracotta text-white flex items-center gap-1 shadow-amber-glow animate-pulse">
+                          <AlertTriangle className="w-3 h-3" /> Urgent Stay
+                        </span>
+                      )}
+                      <span className={`text-[11px] font-medium px-2.5 py-0.5 rounded-pill ${
+                        isCritical ? 'text-white/60 bg-white/5' : 'text-warm-muted bg-white/70'
+                      }`}>
+                        {c.courtName}
                       </span>
-                    )}
-                    {c.urgency === 'HIGH' && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        High Priority
-                      </span>
-                    )}
-                  </div>
-
-                  <h3 className="text-base font-bold text-neutral-900 leading-snug">
-                    {c.title}
-                  </h3>
-
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-600">
-                    <span className="flex items-center gap-1">
-                      <Gavel className="w-3.5 h-3.5 text-neutral-400" />
-                      Bench: <span className="font-medium text-neutral-800">{c.bench}</span>
-                    </span>
-                    <span>•</span>
-                    <span>Stage: <strong className="text-blue-700">{c.stage}</strong></span>
-                    <span>•</span>
-                    <span>Client: <strong className="text-neutral-800">{c.clientName}</strong></span>
-                  </div>
-
-                  {/* Last Order Snippet */}
-                  <div className="p-2.5 bg-neutral-50 rounded-m3-md border border-neutral-200 text-xs text-neutral-700 mt-2">
-                    <div className="flex items-center justify-between text-[11px] text-neutral-500 font-semibold mb-0.5">
-                      <span>Last Order ({c.lastHearingDate || 'Recent'})</span>
-                      <span className="text-blue-600 font-normal">Google Drive Ingested</span>
                     </div>
-                    <p className="line-clamp-2 leading-relaxed italic text-neutral-800">
+                  </div>
+
+                  {/* Case Title */}
+                  <h4 className={`text-base sm:text-lg font-bold leading-snug font-display tracking-tight line-clamp-2 ${
+                    isCritical ? 'text-white' : 'text-warm-obsidian'
+                  }`}>
+                    {c.title}
+                  </h4>
+
+                  {/* Bench & Stage */}
+                  <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs ${
+                    isCritical ? 'text-white/70' : 'text-warm-graphite'
+                  }`}>
+                    <span className="flex items-center gap-1">
+                      <Gavel className="w-3.5 h-3.5 opacity-60" />
+                      {c.bench}
+                    </span>
+                    <span>•</span>
+                    <span className="font-semibold text-terracotta">{c.stage}</span>
+                    <span>•</span>
+                    <span className="truncate max-w-[150px]">Client: {c.clientName}</span>
+                  </div>
+
+                  {/* Order Sheet Snippet */}
+                  <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
+                    isCritical 
+                      ? 'bg-white/5 border border-white/10 text-white/80' 
+                      : 'bg-white/70 border border-warm-borderSubtle text-warm-graphite'
+                  }`}>
+                    <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-wider mb-1 opacity-60">
+                      <span>Last Bench Order</span>
+                      <span>Drive /05_Orders</span>
+                    </div>
+                    <p className="line-clamp-2 italic">
                       "{c.lastOrder}"
                     </p>
                   </div>
                 </div>
 
-                {/* Right: Planning Dates & Action Center */}
-                <div className="flex flex-row lg:flex-col items-center lg:items-end justify-between gap-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-neutral-100 shrink-0">
+                {/* Bottom Section: Pinterest Editorial Date + Capsule Button */}
+                <div className="relative z-10 pt-5 mt-4 border-t border-white/10 flex items-end justify-between gap-3">
                   
-                  {/* Next Date Countdown Card */}
-                  <div className="text-left lg:text-right">
-                    <div className="flex items-center lg:justify-end gap-1.5 text-xs font-semibold text-neutral-800">
-                      <Calendar className="w-4 h-4 text-material-primary" />
-                      <span>Next Hearing: {c.nextHearingDate || 'Unscheduled'}</span>
-                    </div>
+                  {/* Editorial Date Presentation (Direct Pinterest Style: Thu 24th) */}
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-2xl sm:text-3xl font-extrabold tracking-tight font-display ${
+                      isCritical ? 'text-white' : 'text-warm-obsidian'
+                    }`}>
+                      {dayOfWeek}
+                    </span>
+                    <span className={`text-xl sm:text-2xl font-light font-display ${
+                      isCritical ? 'text-terracotta-light' : 'text-warm-muted'
+                    }`}>
+                      {dayOfMonth}
+                    </span>
 
-                    <div className="flex items-center lg:justify-end gap-1.5 mt-1">
-                      {daysLeft !== null && (
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                          daysLeft < 0 ? 'bg-neutral-200 text-neutral-700' :
-                          daysLeft === 0 ? 'bg-rose-500 text-white animate-bounce' :
-                          daysLeft <= 3 ? 'bg-rose-100 text-rose-800 border border-rose-300' :
-                          daysLeft <= 7 ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                          'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                        }`}>
-                          {daysLeft < 0 ? 'Hearing Past' :
-                           daysLeft === 0 ? 'Hearing Today!' :
-                           `In ${daysLeft} days`}
-                        </span>
-                      )}
-                      <span className="text-[11px] font-mono text-neutral-500">
-                        {c.itemNumber}
+                    {daysLeft !== null && (
+                      <span className={`ml-2 text-[10px] font-bold px-2.5 py-0.5 rounded-pill ${
+                        daysLeft === 0 ? 'bg-terracotta text-white animate-bounce' :
+                        daysLeft <= 3 ? 'bg-amber-500/20 text-amber-600 border border-amber-500/30' :
+                        'bg-emerald-500/10 text-emerald-600'
+                      }`}>
+                        {daysLeft === 0 ? 'Today!' : `in ${daysLeft}d`}
                       </span>
-                    </div>
+                    )}
                   </div>
 
                   {/* Action Buttons */}
@@ -220,10 +237,14 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
                         href={c.driveFolderUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-2 rounded-m3-md border border-neutral-200 hover:bg-neutral-100 text-neutral-600 text-xs transition-colors"
-                        title="Open Google Drive Case Folder"
+                        className={`p-2 rounded-full border transition-colors ${
+                          isCritical 
+                            ? 'border-white/20 text-white hover:bg-white/10' 
+                            : 'border-warm-borderSubtle text-warm-graphite hover:bg-white'
+                        }`}
+                        title="Google Drive Case Folder"
                       >
-                        <FolderOpen className="w-4 h-4 text-blue-600" />
+                        <FolderOpen className="w-4 h-4" />
                       </a>
                     )}
 
@@ -232,9 +253,15 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
                         setSelectedCaseId(c.id);
                         switchRole('STAFF');
                       }}
-                      className="px-3.5 py-1.5 rounded-m3-full bg-material-primary hover:bg-blue-700 text-white text-xs font-medium shadow-xs flex items-center gap-1.5 transition-all"
+                      className={isCritical 
+                        ? "inline-flex items-center justify-between pl-4 pr-1.5 py-1.5 rounded-pill bg-white text-warm-obsidian hover:bg-warm-sand transition-all text-xs font-semibold shadow-md"
+                        : "capsule-btn-dark text-xs"
+                      }
                     >
-                      Open Case Workspace <ArrowUpRight className="w-3.5 h-3.5" />
+                      <span>Workspace</span>
+                      <div className={`knob ${isCritical ? '!bg-warm-obsidian !text-white' : ''}`}>
+                        <ArrowRight className="w-3.5 h-3.5 text-white" />
+                      </div>
                     </button>
                   </div>
 
