@@ -19,12 +19,18 @@ import {
   ExternalLink,
   Sliders,
   ChevronDown,
-  AlertCircle
+  AlertCircle,
+  Edit3,
+  X,
+  Check,
+  AlertTriangle,
+  ShieldAlert
 } from 'lucide-react';
 import { defaultSystemConfig } from '../../defaultConfig';
+import { extractDriveFolderId } from '../../services/googleWorkspace';
 
 export const SystemCustomizer = () => {
-  const { systemConfig, updateSystemConfig, showToast } = useApp();
+  const { systemConfig, updateSystemConfig, deleteAllPracticeData, showToast } = useApp();
 
   const [activeTab, setActiveTab] = useState('BRANDING');
   const [config, setConfig] = useState(systemConfig);
@@ -56,6 +62,19 @@ export const SystemCustomizer = () => {
   const [newReminderLabel, setNewReminderLabel] = useState('');
   const [newReminderChannel, setNewReminderChannel] = useState('In-App + Email');
 
+  // Edit States for Customisation Options
+  const [editingCourt, setEditingCourt] = useState(null);
+  const [editingCaseType, setEditingCaseType] = useState(null); // { index, value }
+  const [editingCaseStage, setEditingCaseStage] = useState(null); // { index, value }
+  const [editingTaskCategory, setEditingTaskCategory] = useState(null); // { index, value }
+  const [editingTaskPriority, setEditingTaskPriority] = useState(null); // { index, value }
+  const [editingFolder, setEditingFolder] = useState(null); // folder obj
+  const [editingReminder, setEditingReminder] = useState(null); // reminder obj
+
+  // Danger Zone confirmation state
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+  const [confirmDeleteInput, setConfirmDeleteInput] = useState('');
+
   const handleSave = async () => {
     const res = await updateSystemConfig(config);
     if (res?.success !== false) {
@@ -72,7 +91,21 @@ export const SystemCustomizer = () => {
     }
   };
 
-  // Courts Master Handlers
+  // --- Master Google Drive Link Change Handler ---
+  const handleMasterDriveChange = (val) => {
+    const extractedId = extractDriveFolderId(val);
+    setConfig(prev => ({
+      ...prev,
+      firmBranding: {
+        ...prev.firmBranding,
+        masterDriveUrl: val,
+        masterDriveFolderUrl: extractedId ? `https://drive.google.com/drive/folders/${extractedId}` : val,
+        masterDriveFolderId: extractedId || null
+      }
+    }));
+  };
+
+  // --- Courts Master Handlers ---
   const handleAddCourt = (e) => {
     e.preventDefault();
     if (!newCourtName || !newCourtCode) return;
@@ -98,11 +131,32 @@ export const SystemCustomizer = () => {
     showToast(`Added ${newCourt.name} to court master`);
   };
 
-  const handleDeleteCourt = (id) => {
-    setConfig(prev => ({ ...prev, courts: (prev.courts || []).filter(c => c.id !== id) }));
+  const handleUpdateCourt = (e) => {
+    e.preventDefault();
+    if (!editingCourt) return;
+    const benchesList = typeof editingCourt.benches === 'string'
+      ? editingCourt.benches.split(',').map(b => b.trim()).filter(Boolean)
+      : editingCourt.benches;
+
+    const updated = {
+      ...editingCourt,
+      benches: benchesList
+    };
+
+    setConfig(prev => ({
+      ...prev,
+      courts: (prev.courts || []).map(c => c.id === editingCourt.id ? updated : c)
+    }));
+    setEditingCourt(null);
+    showToast(`Updated parameters for ${updated.name}`);
   };
 
-  // Case Types & Stages Handlers
+  const handleDeleteCourt = (id) => {
+    setConfig(prev => ({ ...prev, courts: (prev.courts || []).filter(c => c.id !== id) }));
+    showToast('Court removed from master list.');
+  };
+
+  // --- Case Types Handlers ---
   const handleAddCaseType = (e) => {
     e.preventDefault();
     if (!newCaseType.trim()) return;
@@ -110,10 +164,21 @@ export const SystemCustomizer = () => {
     setNewCaseType('');
   };
 
+  const handleUpdateCaseType = (e) => {
+    e.preventDefault();
+    if (!editingCaseType) return;
+    const updated = [...(config.caseTypes || [])];
+    updated[editingCaseType.index] = editingCaseType.value.trim();
+    setConfig(prev => ({ ...prev, caseTypes: updated }));
+    setEditingCaseType(null);
+    showToast('Case type updated.');
+  };
+
   const handleDeleteCaseType = (typeToRemove) => {
     setConfig(prev => ({ ...prev, caseTypes: (prev.caseTypes || []).filter(ct => ct !== typeToRemove) }));
   };
 
+  // --- Case Stages Handlers ---
   const handleAddCaseStage = (e) => {
     e.preventDefault();
     if (!newCaseStage.trim()) return;
@@ -121,11 +186,21 @@ export const SystemCustomizer = () => {
     setNewCaseStage('');
   };
 
+  const handleUpdateCaseStage = (e) => {
+    e.preventDefault();
+    if (!editingCaseStage) return;
+    const updated = [...(config.caseStages || [])];
+    updated[editingCaseStage.index] = editingCaseStage.value.trim();
+    setConfig(prev => ({ ...prev, caseStages: updated }));
+    setEditingCaseStage(null);
+    showToast('Case stage updated.');
+  };
+
   const handleDeleteCaseStage = (stageToRemove) => {
     setConfig(prev => ({ ...prev, caseStages: (prev.caseStages || []).filter(s => s !== stageToRemove) }));
   };
 
-  // Task Categories & Priorities Handlers
+  // --- Task Categories Handlers ---
   const handleAddTaskCategory = (e) => {
     e.preventDefault();
     if (!newTaskCategory.trim()) return;
@@ -133,10 +208,21 @@ export const SystemCustomizer = () => {
     setNewTaskCategory('');
   };
 
+  const handleUpdateTaskCategory = (e) => {
+    e.preventDefault();
+    if (!editingTaskCategory) return;
+    const updated = [...(config.taskCategories || [])];
+    updated[editingTaskCategory.index] = editingTaskCategory.value.trim();
+    setConfig(prev => ({ ...prev, taskCategories: updated }));
+    setEditingTaskCategory(null);
+    showToast('Task category updated.');
+  };
+
   const handleDeleteTaskCategory = (catToRemove) => {
     setConfig(prev => ({ ...prev, taskCategories: (prev.taskCategories || []).filter(cat => cat !== catToRemove) }));
   };
 
+  // --- Task Priorities Handlers ---
   const handleAddTaskPriority = (e) => {
     e.preventDefault();
     if (!newTaskPriority.trim()) return;
@@ -144,11 +230,21 @@ export const SystemCustomizer = () => {
     setNewTaskPriority('');
   };
 
+  const handleUpdateTaskPriority = (e) => {
+    e.preventDefault();
+    if (!editingTaskPriority) return;
+    const updated = [...(config.taskPriorities || [])];
+    updated[editingTaskPriority.index] = editingTaskPriority.value.trim().toUpperCase();
+    setConfig(prev => ({ ...prev, taskPriorities: updated }));
+    setEditingTaskPriority(null);
+    showToast('Task priority updated.');
+  };
+
   const handleDeleteTaskPriority = (priorityToRemove) => {
     setConfig(prev => ({ ...prev, taskPriorities: (prev.taskPriorities || []).filter(p => p !== priorityToRemove) }));
   };
 
-  // Folder Templates Handlers
+  // --- Folder Templates Handlers ---
   const handleAddFolder = (e) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
@@ -162,11 +258,22 @@ export const SystemCustomizer = () => {
     setNewFolderDesc('');
   };
 
+  const handleUpdateFolder = (e) => {
+    e.preventDefault();
+    if (!editingFolder) return;
+    setConfig(prev => ({
+      ...prev,
+      driveFolderTemplate: (prev.driveFolderTemplate || []).map(f => f.id === editingFolder.id ? editingFolder : f)
+    }));
+    setEditingFolder(null);
+    showToast('Folder template updated.');
+  };
+
   const handleDeleteFolder = (id) => {
     setConfig(prev => ({ ...prev, driveFolderTemplate: (prev.driveFolderTemplate || []).filter(f => f.id !== id) }));
   };
 
-  // Hearing Reminders Handlers
+  // --- Hearing Reminders Handlers ---
   const handleAddReminder = (e) => {
     e.preventDefault();
     if (!newReminderLabel.trim()) return;
@@ -184,8 +291,30 @@ export const SystemCustomizer = () => {
     setNewReminderLabel('');
   };
 
+  const handleUpdateReminder = (e) => {
+    e.preventDefault();
+    if (!editingReminder) return;
+    setConfig(prev => ({
+      ...prev,
+      reminderPresets: (prev.reminderPresets || []).map(r => r.id === editingReminder.id ? editingReminder : r)
+    }));
+    setEditingReminder(null);
+    showToast('Reminder interval updated.');
+  };
+
   const handleDeleteReminder = (id) => {
     setConfig(prev => ({ ...prev, reminderPresets: (prev.reminderPresets || []).filter(r => r.id !== id) }));
+  };
+
+  // --- Factory Reset / Delete All Practice Data ---
+  const handleExecuteDeleteAllData = async () => {
+    if (confirmDeleteInput.trim().toUpperCase() !== 'DELETE ALL DATA') {
+      showToast('Please type "DELETE ALL DATA" to confirm.', 'error');
+      return;
+    }
+    await deleteAllPracticeData();
+    setShowDeleteAllConfirm(false);
+    setConfirmDeleteInput('');
   };
 
   return (
@@ -203,7 +332,7 @@ export const SystemCustomizer = () => {
             </span>
           </div>
           <p className="text-xs text-warm-muted mt-1 max-w-xl">
-            Configure every aspect without writing code: white-label branding, courts, online scraper endpoints, case stages, task workflows, Drive templates, and email templates.
+            Edit and delete any parameter: white-label branding, master Google Drive nesting, judicial forums, case stages, task workflows, and drive folder trees.
           </p>
         </div>
 
@@ -218,14 +347,15 @@ export const SystemCustomizer = () => {
             onClick={handleSave}
             className="capsule-btn-dark text-xs"
           >
-            <span>Save All to Firebase</span>
+            <span>Save Configuration</span>
             <div className="knob"><Save className="w-3.5 h-3.5 text-white" /></div>
           </button>
         </div>
       </div>
 
+      {/* Success Notification Bar */}
       {savedSuccess && (
-        <div className="p-3 bg-emerald-500/10 border-b border-emerald-500/20 text-emerald-800 text-xs font-semibold flex items-center justify-center gap-2 animate-fade-in">
+        <div className="bg-emerald-500/10 border-b border-emerald-500/20 text-emerald-800 px-6 py-2.5 text-xs font-semibold flex items-center gap-2 animate-fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           All configuration changes saved and broadcast live to all consoles!
         </div>
@@ -234,13 +364,14 @@ export const SystemCustomizer = () => {
       {/* Responsive Horizontal Tab Bar */}
       <div className="flex border-b border-warm-borderSubtle bg-white/40 overflow-x-auto no-scrollbar px-3 sm:px-6">
         {[
-          { key: 'BRANDING', label: 'Branding & Theme', icon: Palette },
+          { key: 'BRANDING', label: 'Branding & Master Drive', icon: Palette },
           { key: 'COURTS', label: 'Courts & Scrapers', icon: Building },
           { key: 'CASE_FIELDS', label: 'Case Forms & Stages', icon: Layers },
           { key: 'TASKS', label: 'Task Workflow', icon: CheckSquare },
-          { key: 'DRIVE', label: 'Drive Templates', icon: FolderTree },
+          { key: 'DRIVE', label: 'Drive Hierarchy', icon: FolderTree },
           { key: 'REMINDERS', label: 'Hearing Reminders', icon: Clock },
           { key: 'EMAILS', label: 'Email Templates', icon: Mail },
+          { key: 'DANGER', label: 'Data Reset', icon: ShieldAlert, isDanger: true },
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
@@ -250,8 +381,8 @@ export const SystemCustomizer = () => {
               onClick={() => setActiveTab(tab.key)}
               className={`flex items-center gap-2 px-4 py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
                 isActive
-                  ? 'border-terracotta text-terracotta font-bold'
-                  : 'border-transparent text-warm-muted hover:text-warm-obsidian'
+                  ? tab.isDanger ? 'border-rose-600 text-rose-600 font-bold' : 'border-terracotta text-terracotta font-bold'
+                  : tab.isDanger ? 'border-transparent text-rose-600/70 hover:text-rose-600' : 'border-transparent text-warm-muted hover:text-warm-obsidian'
               }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
@@ -264,14 +395,58 @@ export const SystemCustomizer = () => {
       {/* Tab Contents */}
       <div className="p-5 sm:p-7">
         
-        {/* TAB 1: BRANDING & THEME */}
+        {/* TAB 1: BRANDING & MASTER DRIVE */}
         {activeTab === 'BRANDING' && (
           <div className="space-y-6 max-w-3xl">
             <div>
-              <h3 className="text-sm font-bold text-warm-obsidian font-display mb-1">Firm Identity & White-labeling</h3>
+              <h3 className="text-sm font-bold text-warm-obsidian font-display mb-1">Firm Identity & Master Google Drive</h3>
               <p className="text-xs text-warm-muted">
-                Customise the firm title, tagline, logo icon, favicon, and master cloud drive.
+                Customise the firm title, tagline, logo icon, favicon, and Master Google Drive folder where all cases will reside.
               </p>
+            </div>
+
+            {/* Master Google Drive Folder Root */}
+            <div className="p-5 bg-white/90 rounded-3xl border border-warm-borderSubtle space-y-3 shadow-xs">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <label className="block text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                  <FolderTree className="w-4 h-4 text-terracotta" />
+                  Master Google Drive Litigation Root Folder
+                </label>
+                {config.firmBranding?.masterDriveUrl && (
+                  <a
+                    href={config.firmBranding.masterDriveUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-semibold text-terracotta hover:underline flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3 h-3" /> Open Master Folder in Google Drive
+                  </a>
+                )}
+              </div>
+
+              <input
+                type="text"
+                value={config.firmBranding?.masterDriveUrl || ''}
+                onChange={(e) => handleMasterDriveChange(e.target.value)}
+                placeholder="https://drive.google.com/drive/folders/1w7uR4K8yP... or Folder ID"
+                className="w-full capsule-input text-xs font-mono font-medium"
+              />
+
+              <div className="flex flex-col gap-1 text-[11px]">
+                {extractDriveFolderId(config.firmBranding?.masterDriveUrl) ? (
+                  <span className="text-emerald-700 font-mono font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Master Folder ID Validated: {extractDriveFolderId(config.firmBranding?.masterDriveUrl)}
+                  </span>
+                ) : (
+                  <span className="text-warm-muted">
+                    ℹ Paste your Google Drive folder link or folder ID.
+                  </span>
+                )}
+                <span className="text-warm-graphite">
+                  ⭐ <strong>Automatic Folder Nesting:</strong> Every newly provisioned litigation case folder and its 6 subdirectories will be created directly <strong>INSIDE</strong> this Master Google Drive folder!
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -298,45 +473,10 @@ export const SystemCustomizer = () => {
                     ...prev,
                     firmBranding: { ...prev.firmBranding, headerSubtitle: e.target.value }
                   }))}
-                  placeholder="e.g. Warm Minimalist Legal Practice Suite"
+                  placeholder="e.g. Legal Studio · Advocates & Legal Consultants"
                   className="w-full capsule-input text-xs"
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-warm-graphite mb-1.5">Jurisdiction Tagline</label>
-              <input
-                type="text"
-                value={config.firmBranding?.tagline || ''}
-                onChange={(e) => setConfig(prev => ({
-                  ...prev,
-                  firmBranding: { ...prev.firmBranding, tagline: e.target.value }
-                }))}
-                placeholder="e.g. Advocates & Legal Consultants • High Court at Calcutta & Supreme Court"
-                className="w-full capsule-input text-xs"
-              />
-            </div>
-
-            {/* Master Google Drive URL */}
-            <div className="p-4 bg-white/80 rounded-3xl border border-warm-borderSubtle space-y-2">
-              <label className="block text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
-                <FolderTree className="w-3.5 h-3.5 text-terracotta" />
-                Master Google Drive Root URL
-              </label>
-              <input
-                type="url"
-                value={config.firmBranding?.masterDriveUrl || ''}
-                onChange={(e) => setConfig(prev => ({
-                  ...prev,
-                  firmBranding: { ...prev.firmBranding, masterDriveUrl: e.target.value }
-                }))}
-                placeholder="https://drive.google.com/drive/folders/YOUR_CHAMBERS_MASTER_ROOT_ID"
-                className="w-full capsule-input text-xs font-mono"
-              />
-              <p className="text-[11px] text-warm-muted">
-                This root drive opens when staff or managers click the Master Cloud Drive in the header or workspace.
-              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -429,7 +569,7 @@ export const SystemCustomizer = () => {
                 Courts & Tribunals Master (Online Scraper Enabled)
               </h3>
               <p className="text-xs text-warm-muted">
-                Add any judicial forum (Supreme Court, High Courts, NCLT, CAT, District Courts, Tribunals). When you add a new forum with its official portal and scraper engine, staff can automatically fetch daily orders online.
+                Add, edit, or delete judicial forums. When you add or edit a forum with its official portal and scraper engine, staff can automatically fetch daily orders online.
               </p>
             </div>
 
@@ -448,7 +588,7 @@ export const SystemCustomizer = () => {
                     value={newCourtName}
                     onChange={(e) => setNewCourtName(e.target.value)}
                     placeholder="e.g. Delhi High Court"
-                    className="w-full capsule-input text-xs"
+                    className="w-full capsule-input text-xs font-semibold"
                   />
                 </div>
 
@@ -459,8 +599,8 @@ export const SystemCustomizer = () => {
                     required
                     value={newCourtCode}
                     onChange={(e) => setNewCourtCode(e.target.value)}
-                    placeholder="e.g. DEL_HC"
-                    className="w-full capsule-input text-xs font-mono uppercase"
+                    placeholder="e.g. DHC"
+                    className="w-full capsule-input text-xs font-mono font-bold"
                   />
                 </div>
 
@@ -541,10 +681,10 @@ export const SystemCustomizer = () => {
               </div>
             </form>
 
-            {/* Courts Grid */}
+            {/* Courts Grid with Edit & Delete */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {(config.courts || []).map(c => (
-                <div key={c.id || c.code} className="p-4 rounded-3xl glass-panel flex flex-col justify-between space-y-2 border border-white/80">
+                <div key={c.id || c.code} className="p-4 rounded-3xl glass-panel flex flex-col justify-between space-y-2 border border-white/80 hover:glass-panel-elevated transition-all">
                   <div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -553,13 +693,28 @@ export const SystemCustomizer = () => {
                         </span>
                         <span className="text-xs font-bold text-warm-obsidian font-display">{c.name}</span>
                       </div>
-                      <button
-                        onClick={() => handleDeleteCourt(c.id)}
-                        className="p-1 text-warm-muted hover:text-rose-600 transition-colors"
-                        title="Remove Court"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingCourt({
+                            ...c,
+                            benches: Array.isArray(c.benches) ? c.benches.join(', ') : (c.benches || '')
+                          })}
+                          className="p-1.5 rounded-full hover:bg-white text-warm-muted hover:text-warm-obsidian transition-colors shadow-xs"
+                          title="Edit Court Parameters"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-terracotta" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCourt(c.id)}
+                          className="p-1.5 rounded-full hover:bg-rose-50 text-warm-muted hover:text-rose-600 transition-colors shadow-xs"
+                          title="Delete Court"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px] text-warm-muted">
@@ -571,23 +726,18 @@ export const SystemCustomizer = () => {
                     </div>
 
                     {c.portalUrl && (
-                      <div className="mt-2">
-                        <a
-                          href={c.portalUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[11px] font-semibold text-terracotta hover:underline inline-flex items-center gap-1"
-                        >
-                          <Globe className="w-3 h-3" />
-                          <span className="truncate max-w-[280px]">{c.portalUrl}</span>
-                          <ExternalLink className="w-2.5 h-2.5" />
-                        </a>
-                      </div>
+                      <p className="text-[10px] font-mono text-warm-muted truncate mt-1">
+                        🌐 {c.portalUrl}
+                      </p>
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-warm-borderSubtle/50 text-[11px] text-warm-muted truncate">
-                    Benches: {Array.isArray(c.benches) ? c.benches.join(', ') : 'Standard'}
+                  <div className="pt-2 border-t border-warm-borderSubtle/60 flex flex-wrap gap-1">
+                    {(Array.isArray(c.benches) ? c.benches : []).map((b, i) => (
+                      <span key={i} className="text-[9px] bg-white px-2 py-0.5 rounded-pill text-warm-graphite border border-warm-borderSubtle">
+                        {b}
+                      </span>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -597,15 +747,19 @@ export const SystemCustomizer = () => {
 
         {/* TAB 3: CASE FORMS & STAGES */}
         {activeTab === 'CASE_FIELDS' && (
-          <div className="space-y-8 max-w-3xl">
-            {/* Case Types Master */}
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-warm-obsidian font-display mb-1">Litigation Matter Types</h3>
-                <p className="text-xs text-warm-muted">
-                  Customise case categories (Writ Petitions, Civil Suits, Appeals, Company Petitions).
-                </p>
-              </div>
+          <div className="space-y-6 max-w-3xl">
+            <div>
+              <h3 className="text-sm font-bold text-warm-obsidian font-display mb-1">Case Types & Litigation Stages</h3>
+              <p className="text-xs text-warm-muted">
+                Add, edit, or delete case classification types and litigation milestone stages.
+              </p>
+            </div>
+
+            {/* Case Types Section */}
+            <div className="p-5 bg-white/70 rounded-3xl border border-warm-borderSubtle space-y-3">
+              <h4 className="text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-terracotta" /> Case Classification Types
+              </h4>
 
               <form onSubmit={handleAddCaseType} className="flex gap-2">
                 <input
@@ -613,8 +767,8 @@ export const SystemCustomizer = () => {
                   required
                   value={newCaseType}
                   onChange={(e) => setNewCaseType(e.target.value)}
-                  placeholder="New Matter Type (e.g. Commercial Suit / Summary Suit)"
-                  className="flex-1 capsule-input text-xs"
+                  placeholder="New Case Type (e.g. Arbitration Petition)"
+                  className="flex-1 capsule-input text-xs font-mono"
                 />
                 <button
                   type="submit"
@@ -625,32 +779,36 @@ export const SystemCustomizer = () => {
                 </button>
               </form>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {(config.caseTypes || []).map((ct, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-3 bg-white/70 rounded-2xl border border-warm-borderSubtle"
-                  >
-                    <span className="text-xs font-semibold text-warm-obsidian truncate">{ct}</span>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {(config.caseTypes || []).map((t, idx) => (
+                  <div key={t} className="flex items-center gap-1 px-3 py-1 rounded-pill bg-white text-warm-obsidian text-xs font-mono font-medium border border-warm-borderSubtle shadow-xs">
+                    <span>{t}</span>
                     <button
-                      onClick={() => handleDeleteCaseType(ct)}
-                      className="text-warm-muted hover:text-rose-600 p-1"
+                      type="button"
+                      onClick={() => setEditingCaseType({ index: idx, value: t })}
+                      className="text-warm-muted hover:text-terracotta ml-1"
+                      title="Edit Case Type"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCaseType(t)}
+                      className="text-warm-muted hover:text-rose-600 ml-0.5"
+                      title="Delete Case Type"
+                    >
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Case Stages Master */}
-            <div className="space-y-4 pt-4 border-t border-warm-borderSubtle">
-              <div>
-                <h3 className="text-sm font-bold text-warm-obsidian font-display mb-1">Litigation Stages & Procedural Lifecycle</h3>
-                <p className="text-xs text-warm-muted">
-                  The sequential milestones of a lawsuit, from initial registration to final decree execution.
-                </p>
-              </div>
+            {/* Litigation Stages Section */}
+            <div className="p-5 bg-white/70 rounded-3xl border border-warm-borderSubtle space-y-3">
+              <h4 className="text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-terracotta" /> Procedural Stages & Milestones
+              </h4>
 
               <form onSubmit={handleAddCaseStage} className="flex gap-2">
                 <input
@@ -658,7 +816,7 @@ export const SystemCustomizer = () => {
                   required
                   value={newCaseStage}
                   onChange={(e) => setNewCaseStage(e.target.value)}
-                  placeholder="New Case Stage (e.g. Cross Examination of Plaintiff Witness)"
+                  placeholder="New Stage (e.g. Arguments on Admission)"
                   className="flex-1 capsule-input text-xs"
                 />
                 <button
@@ -670,24 +828,33 @@ export const SystemCustomizer = () => {
                 </button>
               </form>
 
-              <div className="space-y-2">
-                {(config.caseStages || []).map((stage, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-3.5 bg-white/70 rounded-2xl border border-warm-borderSubtle"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-5 h-5 rounded-full bg-warm-sand flex items-center justify-center font-mono text-[10px] font-bold text-warm-graphite">
+              <div className="space-y-1.5 pt-1">
+                {(config.caseStages || []).map((s, idx) => (
+                  <div key={s} className="flex items-center justify-between p-3 rounded-2xl bg-white border border-warm-borderSubtle text-xs text-warm-obsidian font-medium">
+                    <span className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-warm-sand text-warm-obsidian flex items-center justify-center font-bold text-[10px]">
                         {idx + 1}
                       </span>
-                      <span className="text-xs font-semibold text-warm-obsidian">{stage}</span>
+                      <span>{s}</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingCaseStage({ index: idx, value: s })}
+                        className="text-warm-muted hover:text-terracotta p-1"
+                        title="Edit Stage"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCaseStage(s)}
+                        className="text-warm-muted hover:text-rose-600 p-1"
+                        title="Delete Stage"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleDeleteCaseStage(stage)}
-                      className="text-warm-muted hover:text-rose-600 p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 ))}
               </div>
@@ -697,15 +864,19 @@ export const SystemCustomizer = () => {
 
         {/* TAB 4: TASK WORKFLOW */}
         {activeTab === 'TASKS' && (
-          <div className="space-y-8 max-w-3xl">
+          <div className="space-y-6 max-w-3xl">
+            <div>
+              <h3 className="text-sm font-bold text-warm-obsidian font-display mb-1">Task Categories & Priorities</h3>
+              <p className="text-xs text-warm-muted">
+                Add, edit, or delete task categories and priority levels delegated to associates and clerks.
+              </p>
+            </div>
+
             {/* Task Categories */}
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-warm-obsidian font-display mb-1">Task Categories Master</h3>
-                <p className="text-xs text-warm-muted">
-                  Categories available in Manager Admin when delegating briefs, research, and filing tasks.
-                </p>
-              </div>
+            <div className="p-5 bg-white/70 rounded-3xl border border-warm-borderSubtle space-y-3">
+              <h4 className="text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                <CheckSquare className="w-3.5 h-3.5 text-terracotta" /> Task Workflow Categories
+              </h4>
 
               <form onSubmit={handleAddTaskCategory} className="flex gap-2">
                 <input
@@ -713,30 +884,37 @@ export const SystemCustomizer = () => {
                   required
                   value={newTaskCategory}
                   onChange={(e) => setNewTaskCategory(e.target.value)}
-                  placeholder="New Category (e.g. Caveat Search & Service Verification)"
+                  placeholder="New Category (e.g. Legal Research & Citations)"
                   className="flex-1 capsule-input text-xs"
                 />
                 <button
                   type="submit"
                   className="capsule-btn-dark text-xs"
                 >
-                  <span>Add</span>
+                  <span>Add Category</span>
                   <div className="knob"><Plus className="w-3.5 h-3.5 text-white" /></div>
                 </button>
               </form>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-2 pt-1">
                 {(config.taskCategories || []).map((cat, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-3.5 bg-white/70 rounded-2xl border border-warm-borderSubtle"
-                  >
-                    <span className="text-xs font-semibold text-warm-obsidian">{cat}</span>
+                  <div key={cat} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-white text-warm-obsidian text-xs font-medium border border-warm-borderSubtle shadow-xs">
+                    <span>{cat}</span>
                     <button
-                      onClick={() => handleDeleteTaskCategory(cat)}
-                      className="text-warm-muted hover:text-rose-600 p-1"
+                      type="button"
+                      onClick={() => setEditingTaskCategory({ index: idx, value: cat })}
+                      className="text-warm-muted hover:text-terracotta ml-1"
+                      title="Edit Category"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTaskCategory(cat)}
+                      className="text-warm-muted hover:text-rose-600"
+                      title="Delete Category"
+                    >
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 ))}
@@ -744,13 +922,10 @@ export const SystemCustomizer = () => {
             </div>
 
             {/* Task Priorities */}
-            <div className="space-y-4 pt-4 border-t border-warm-borderSubtle">
-              <div>
-                <h3 className="text-sm font-bold text-warm-obsidian font-display mb-1">Task Priority Levels</h3>
-                <p className="text-xs text-warm-muted">
-                  Configure urgency levels for delegated work.
-                </p>
-              </div>
+            <div className="p-5 bg-white/70 rounded-3xl border border-warm-borderSubtle space-y-3">
+              <h4 className="text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-terracotta" /> Task Urgency & Priority Levels
+              </h4>
 
               <form onSubmit={handleAddTaskPriority} className="flex gap-2">
                 <input
@@ -758,28 +933,35 @@ export const SystemCustomizer = () => {
                   required
                   value={newTaskPriority}
                   onChange={(e) => setNewTaskPriority(e.target.value)}
-                  placeholder="New Priority Level (e.g. EMERGENCY)"
+                  placeholder="New Priority (e.g. SAME_DAY)"
                   className="flex-1 capsule-input text-xs font-mono uppercase"
                 />
                 <button
                   type="submit"
                   className="capsule-btn-dark text-xs"
                 >
-                  <span>Add</span>
+                  <span>Add Priority</span>
                   <div className="knob"><Plus className="w-3.5 h-3.5 text-white" /></div>
                 </button>
               </form>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 pt-1">
                 {(config.taskPriorities || []).map((p, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-pill bg-white border border-warm-borderSubtle shadow-xs"
-                  >
-                    <span className="text-xs font-mono font-bold text-warm-obsidian">{p}</span>
+                  <div key={p} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-white text-warm-obsidian text-xs font-mono font-bold border border-warm-borderSubtle shadow-xs">
+                    <span>{p}</span>
                     <button
+                      type="button"
+                      onClick={() => setEditingTaskPriority({ index: idx, value: p })}
+                      className="text-warm-muted hover:text-terracotta ml-1"
+                      title="Edit Priority"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleDeleteTaskPriority(p)}
                       className="text-warm-muted hover:text-rose-600"
+                      title="Delete Priority"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -790,14 +972,49 @@ export const SystemCustomizer = () => {
           </div>
         )}
 
-        {/* TAB 5: DRIVE TEMPLATES */}
+        {/* TAB 5: DRIVE HIERARCHY */}
         {activeTab === 'DRIVE' && (
-          <div className="space-y-5 max-w-2xl">
+          <div className="space-y-6 max-w-2xl">
             <div>
-              <h3 className="text-sm font-bold text-warm-obsidian font-display mb-1">Google Drive Folder Taxonomy</h3>
+              <h3 className="text-sm font-bold text-warm-obsidian font-display mb-1">Google Drive Hierarchy & Subdirectories</h3>
               <p className="text-xs text-warm-muted">
-                Standard subdirectories automatically provisioned for every case folder in Google Drive.
+                Standard subdirectories automatically created inside every case folder under your Master Google Drive.
               </p>
+            </div>
+
+            {/* Master Google Drive Folder Root */}
+            <div className="p-5 bg-white/90 rounded-3xl border border-warm-borderSubtle space-y-3 shadow-xs">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <label className="block text-xs font-bold text-warm-obsidian flex items-center gap-1.5">
+                  <FolderTree className="w-4 h-4 text-terracotta" />
+                  Master Google Drive Litigation Root Folder
+                </label>
+                {config.firmBranding?.masterDriveUrl && (
+                  <a
+                    href={config.firmBranding.masterDriveUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-semibold text-terracotta hover:underline flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3 h-3" /> Open in Drive
+                  </a>
+                )}
+              </div>
+
+              <input
+                type="text"
+                value={config.firmBranding?.masterDriveUrl || ''}
+                onChange={(e) => handleMasterDriveChange(e.target.value)}
+                placeholder="https://drive.google.com/drive/folders/1w7uR4K8yP... or Folder ID"
+                className="w-full capsule-input text-xs font-mono font-medium"
+              />
+
+              {extractDriveFolderId(config.firmBranding?.masterDriveUrl) && (
+                <p className="text-xs text-emerald-700 font-mono font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Master Folder ID: {extractDriveFolderId(config.firmBranding?.masterDriveUrl)}
+                </p>
+              )}
             </div>
 
             <form onSubmit={handleAddFolder} className="p-4 bg-white/70 rounded-3xl border border-warm-borderSubtle space-y-2">
@@ -840,12 +1057,24 @@ export const SystemCustomizer = () => {
                     </div>
                     <p className="text-[11px] text-warm-muted mt-0.5">{f.description}</p>
                   </div>
-                  <button
-                    onClick={() => handleDeleteFolder(f.id)}
-                    className="p-1 text-warm-muted hover:text-rose-600"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingFolder({ ...f })}
+                      className="p-1.5 text-warm-muted hover:text-warm-obsidian"
+                      title="Edit Folder"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-terracotta" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteFolder(f.id)}
+                      className="p-1.5 text-warm-muted hover:text-rose-600"
+                      title="Delete Folder"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -919,19 +1148,31 @@ export const SystemCustomizer = () => {
                       <p className="text-[10px] text-warm-muted">Alert Channel: {r.channel}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDeleteReminder(r.id)}
-                    className="p-1 text-warm-muted hover:text-rose-600"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingReminder({ ...r })}
+                      className="p-1.5 text-warm-muted hover:text-warm-obsidian"
+                      title="Edit Reminder"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-terracotta" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteReminder(r.id)}
+                      className="p-1.5 text-warm-muted hover:text-rose-600"
+                      title="Delete Reminder"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* TAB 7: EMAIL & BRIEF TEMPLATES */}
+        {/* TAB 7: EMAIL TEMPLATES */}
         {activeTab === 'EMAILS' && (
           <div className="space-y-6 max-w-2xl">
             <div>
@@ -968,7 +1209,6 @@ export const SystemCustomizer = () => {
                 />
               </div>
 
-              {/* Dynamic Tokens Guide */}
               <div className="p-4 bg-warm-sand/40 rounded-3xl border border-warm-borderSubtle space-y-2">
                 <p className="text-xs font-bold text-warm-obsidian">Available Dynamic Replacement Tokens:</p>
                 <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-warm-graphite">
@@ -986,7 +1226,433 @@ export const SystemCustomizer = () => {
           </div>
         )}
 
+        {/* TAB 8: DANGER ZONE & FACTORY RESET */}
+        {activeTab === 'DANGER' && (
+          <div className="space-y-6 max-w-2xl">
+            <div>
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-rose-600" />
+                <h3 className="text-base font-bold text-rose-800 font-display">Data Management & Factory Practice Reset</h3>
+              </div>
+              <p className="text-xs text-warm-muted mt-1">
+                Perform administrative data cleanup or completely purge all practice litigation records.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-4xl bg-rose-500/10 border-2 border-rose-500/30 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-rose-900 font-display">
+                    Delete All Practice Data (Litigation Wipe)
+                  </h4>
+                  <p className="text-xs text-rose-800/90 leading-relaxed mt-1">
+                    Permanently deletes <strong>all cases, uploaded filings, court orders, scheduled conferences, and assigned staff tasks</strong> from Firestore.
+                  </p>
+                  <p className="text-[11px] text-rose-700/80 mt-1 font-semibold">
+                    ✓ Your Software Administrator login account and custom settings will be preserved so you remain in control.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-rose-500/20 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteAllConfirm(true)}
+                  className="px-4 py-2 rounded-pill bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Initiate Full Practice Data Wipe</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
+
+      {/* --- MODALS FOR EDITING CUSTOMIZATION ITEMS --- */}
+
+      {/* Edit Court Modal */}
+      {editingCourt && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/45 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="relative w-full max-w-xl glass-panel-elevated rounded-4xl border border-white/95 shadow-glass overflow-hidden p-6 sm:p-7 space-y-4">
+            <div className="flex items-center justify-between border-b border-warm-borderSubtle/60 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full sun-gradient-circle text-white flex items-center justify-center">
+                  <Building className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-warm-obsidian font-display">Edit Judicial Forum Parameters</h3>
+                  <p className="text-xs text-warm-muted">{editingCourt.name} ({editingCourt.code})</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingCourt(null)}
+                className="w-7 h-7 rounded-full bg-warm-sand/50 hover:bg-warm-sand flex items-center justify-center text-warm-graphite"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateCourt} className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-warm-graphite mb-1">Forum Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingCourt.name || ''}
+                    onChange={(e) => setEditingCourt({ ...editingCourt, name: e.target.value })}
+                    className="w-full capsule-input text-xs font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-warm-graphite mb-1">Court Code *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingCourt.code || ''}
+                    onChange={(e) => setEditingCourt({ ...editingCourt, code: e.target.value.toUpperCase() })}
+                    className="w-full capsule-input text-xs font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-warm-graphite mb-1">Forum Type</label>
+                  <select
+                    value={editingCourt.forumType || 'High Court'}
+                    onChange={(e) => setEditingCourt({ ...editingCourt, forumType: e.target.value })}
+                    className="w-full capsule-input text-xs"
+                  >
+                    <option value="Apex Court">Apex Court (Supreme Court)</option>
+                    <option value="High Court">High Court</option>
+                    <option value="Tribunal">Tribunal (NCLT / CAT / DRT / NGT)</option>
+                    <option value="District Court">District & Sessions Court</option>
+                    <option value="City Civil Court">City Civil Court</option>
+                    <option value="Consumer Forum">Consumer Disputes Forum</option>
+                    <option value="Arbitration">Arbitration Tribunal</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-warm-graphite mb-1">State / Jurisdiction</label>
+                  <input
+                    type="text"
+                    value={editingCourt.state || ''}
+                    onChange={(e) => setEditingCourt({ ...editingCourt, state: e.target.value })}
+                    className="w-full capsule-input text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-warm-graphite mb-1">Official Portal URL</label>
+                <input
+                  type="url"
+                  value={editingCourt.portalUrl || ''}
+                  onChange={(e) => setEditingCourt({ ...editingCourt, portalUrl: e.target.value })}
+                  className="w-full capsule-input text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-warm-graphite mb-1">Benches (Comma-separated)</label>
+                <input
+                  type="text"
+                  value={editingCourt.benches || ''}
+                  onChange={(e) => setEditingCourt({ ...editingCourt, benches: e.target.value })}
+                  className="w-full capsule-input text-xs"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-warm-borderSubtle/60">
+                <button
+                  type="button"
+                  onClick={() => setEditingCourt(null)}
+                  className="px-4 py-2 rounded-pill bg-white text-warm-graphite hover:bg-warm-sand/50 text-xs font-semibold border border-warm-borderSubtle"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="capsule-btn-dark text-xs"
+                >
+                  <span>Save Court Changes</span>
+                  <div className="knob"><Check className="w-3.5 h-3.5 text-white" /></div>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Case Type Modal */}
+      {editingCaseType && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/45 backdrop-blur-md flex items-center justify-center p-3 animate-fade-in">
+          <div className="w-full max-w-sm glass-panel-elevated rounded-4xl border border-white/95 p-6 space-y-4">
+            <h3 className="text-sm font-bold text-warm-obsidian font-display">Edit Case Type</h3>
+            <form onSubmit={handleUpdateCaseType} className="space-y-3">
+              <input
+                type="text"
+                required
+                value={editingCaseType.value}
+                onChange={(e) => setEditingCaseType({ ...editingCaseType, value: e.target.value })}
+                className="w-full capsule-input text-xs font-mono font-bold"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingCaseType(null)}
+                  className="px-3.5 py-1.5 rounded-pill bg-white border border-warm-borderSubtle text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="capsule-btn-dark text-xs"
+                >
+                  <span>Save</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Case Stage Modal */}
+      {editingCaseStage && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/45 backdrop-blur-md flex items-center justify-center p-3 animate-fade-in">
+          <div className="w-full max-w-sm glass-panel-elevated rounded-4xl border border-white/95 p-6 space-y-4">
+            <h3 className="text-sm font-bold text-warm-obsidian font-display">Edit Procedural Stage</h3>
+            <form onSubmit={handleUpdateCaseStage} className="space-y-3">
+              <input
+                type="text"
+                required
+                value={editingCaseStage.value}
+                onChange={(e) => setEditingCaseStage({ ...editingCaseStage, value: e.target.value })}
+                className="w-full capsule-input text-xs font-semibold"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingCaseStage(null)}
+                  className="px-3.5 py-1.5 rounded-pill bg-white border border-warm-borderSubtle text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="capsule-btn-dark text-xs"
+                >
+                  <span>Save</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Task Category Modal */}
+      {editingTaskCategory && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/45 backdrop-blur-md flex items-center justify-center p-3 animate-fade-in">
+          <div className="w-full max-w-sm glass-panel-elevated rounded-4xl border border-white/95 p-6 space-y-4">
+            <h3 className="text-sm font-bold text-warm-obsidian font-display">Edit Task Category</h3>
+            <form onSubmit={handleUpdateTaskCategory} className="space-y-3">
+              <input
+                type="text"
+                required
+                value={editingTaskCategory.value}
+                onChange={(e) => setEditingTaskCategory({ ...editingTaskCategory, value: e.target.value })}
+                className="w-full capsule-input text-xs font-semibold"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingTaskCategory(null)}
+                  className="px-3.5 py-1.5 rounded-pill bg-white border border-warm-borderSubtle text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="capsule-btn-dark text-xs"
+                >
+                  <span>Save</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Folder Template Modal */}
+      {editingFolder && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/45 backdrop-blur-md flex items-center justify-center p-3 animate-fade-in">
+          <div className="w-full max-w-md glass-panel-elevated rounded-4xl border border-white/95 p-6 space-y-4">
+            <h3 className="text-sm font-bold text-warm-obsidian font-display">Edit Folder Template</h3>
+            <form onSubmit={handleUpdateFolder} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-warm-graphite mb-1">Folder Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingFolder.name}
+                  onChange={(e) => setEditingFolder({ ...editingFolder, name: e.target.value.replace(/[^a-zA-Z0-9_-]/g, '_') })}
+                  className="w-full capsule-input text-xs font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-warm-graphite mb-1">Description</label>
+                <input
+                  type="text"
+                  value={editingFolder.description || ''}
+                  onChange={(e) => setEditingFolder({ ...editingFolder, description: e.target.value })}
+                  className="w-full capsule-input text-xs"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingFolder(null)}
+                  className="px-3.5 py-1.5 rounded-pill bg-white border border-warm-borderSubtle text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="capsule-btn-dark text-xs"
+                >
+                  <span>Save Folder</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Reminder Preset Modal */}
+      {editingReminder && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/45 backdrop-blur-md flex items-center justify-center p-3 animate-fade-in">
+          <div className="w-full max-w-md glass-panel-elevated rounded-4xl border border-white/95 p-6 space-y-4">
+            <h3 className="text-sm font-bold text-warm-obsidian font-display">Edit Reminder Preset</h3>
+            <form onSubmit={handleUpdateReminder} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-warm-graphite mb-1">Days Before Hearing</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="90"
+                    required
+                    value={editingReminder.daysBefore}
+                    onChange={(e) => setEditingReminder({ ...editingReminder, daysBefore: parseInt(e.target.value, 10) })}
+                    className="w-full capsule-input text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-warm-graphite mb-1">Alert Channel</label>
+                  <select
+                    value={editingReminder.channel}
+                    onChange={(e) => setEditingReminder({ ...editingReminder, channel: e.target.value })}
+                    className="w-full capsule-input text-xs"
+                  >
+                    <option value="In-App + Email">In-App + Email</option>
+                    <option value="In-App + Email + SMS">In-App + Email + SMS</option>
+                    <option value="In-App + WhatsApp">In-App + WhatsApp</option>
+                    <option value="In-App Only">In-App Only</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-warm-graphite mb-1">Alert Label</label>
+                <input
+                  type="text"
+                  required
+                  value={editingReminder.label}
+                  onChange={(e) => setEditingReminder({ ...editingReminder, label: e.target.value })}
+                  className="w-full capsule-input text-xs"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingReminder(null)}
+                  className="px-3.5 py-1.5 rounded-pill bg-white border border-warm-borderSubtle text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="capsule-btn-dark text-xs"
+                >
+                  <span>Save Reminder</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Practice Data Confirmation Modal */}
+      {showDeleteAllConfirm && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="relative w-full max-w-lg glass-panel-elevated rounded-4xl border-2 border-rose-500 shadow-glass overflow-hidden p-6 sm:p-7 space-y-4 bg-white/95">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-rose-900 font-display">Permanent Practice Data Wipe</h3>
+                <p className="text-xs text-rose-700">Irreversible administrative action</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-3xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-2 leading-relaxed">
+              <p>
+                This will immediately delete <strong>all registered cases, uploaded filings, orders, tasks, and scheduled conferences</strong> from Firestore database.
+              </p>
+              <p className="font-semibold text-rose-950">
+                Type <span className="font-mono bg-white px-2 py-0.5 rounded border border-rose-300">DELETE ALL DATA</span> below to confirm:
+              </p>
+            </div>
+
+            <input
+              type="text"
+              value={confirmDeleteInput}
+              onChange={(e) => setConfirmDeleteInput(e.target.value)}
+              placeholder="Type DELETE ALL DATA"
+              className="w-full capsule-input text-xs font-mono font-bold tracking-wider text-rose-800"
+            />
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-warm-borderSubtle/60">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteAllConfirm(false);
+                  setConfirmDeleteInput('');
+                }}
+                className="px-4 py-2 rounded-pill bg-white text-warm-graphite hover:bg-warm-sand/50 text-xs font-semibold border border-warm-borderSubtle"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteDeleteAllData}
+                disabled={confirmDeleteInput.trim().toUpperCase() !== 'DELETE ALL DATA'}
+                className="px-4 py-2 rounded-pill bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm Permanent Data Erase</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

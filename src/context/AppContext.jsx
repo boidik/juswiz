@@ -462,12 +462,16 @@ export const AppProvider = ({ children }) => {
         driveFolderId = userFolderId;
         effectiveDriveUrl = `https://drive.google.com/drive/folders/${userFolderId}`;
       } else if (isGoogleConnected) {
-        // 2. If Google Workspace connected, call Google Drive API to create the real folder and get genuine Folder ID
+        // 2. If Google Workspace connected, call Google Drive API to create the real folder nested inside Master Folder
+        const masterFolderId = systemConfig.firmBranding?.masterDriveFolderId || 
+          extractDriveFolderId(systemConfig.firmBranding?.masterDriveUrl);
+
         const driveResult = await createCaseFolderInDrive({
           caseNumber: caseData.caseNumber,
           clientName: caseData.clientName,
           courtCode: caseData.courtCode,
-          folderTemplate: systemConfig.driveFolderTemplate || []
+          folderTemplate: systemConfig.driveFolderTemplate || [],
+          masterFolderId
         });
         if (driveResult.folderId) {
           driveFolderId = driveResult.folderId;
@@ -567,11 +571,15 @@ export const AppProvider = ({ children }) => {
       }
 
       showToast('Creating case folder & subdirectories in Google Drive...');
+      const masterFolderId = systemConfig.firmBranding?.masterDriveFolderId || 
+        extractDriveFolderId(systemConfig.firmBranding?.masterDriveUrl);
+
       const result = await createCaseFolderInDrive({
         caseNumber: targetCase.caseNumber,
         clientName: targetCase.clientName,
         courtCode: targetCase.courtCode,
-        folderTemplate: systemConfig.driveFolderTemplate || []
+        folderTemplate: systemConfig.driveFolderTemplate || [],
+        masterFolderId
       });
 
       if (result.success && result.folderId) {
@@ -588,6 +596,108 @@ export const AppProvider = ({ children }) => {
     } catch (err) {
       console.error(err);
       showToast('Google Drive error: ' + err.message, 'error');
+      return { success: false, message: err.message };
+    }
+  };
+
+  const deleteCase = async (caseId) => {
+    try {
+      const target = cases.find(c => c.id === caseId);
+      const caseNum = target?.caseNumber || caseId;
+
+      // 1. Delete case doc
+      await deleteDoc(doc(db, 'cases', caseId));
+
+      // 2. Cascade delete documents linked to this case
+      const linkedDocs = documents.filter(d => d.caseId === caseId);
+      for (const d of linkedDocs) {
+        try { await deleteDoc(doc(db, 'documents', d.id)); } catch (e) {}
+      }
+
+      // 3. Cascade delete tasks linked to this case
+      const linkedTasks = tasks.filter(t => t.caseId === caseId);
+      for (const t of linkedTasks) {
+        try { await deleteDoc(doc(db, 'tasks', t.id)); } catch (e) {}
+      }
+
+      // 4. Cascade delete conferences linked to this case
+      const linkedConfs = conferences.filter(c => c.caseId === caseId);
+      for (const c of linkedConfs) {
+        try { await deleteDoc(doc(db, 'conferences', c.id)); } catch (e) {}
+      }
+
+      // If active selectedCase was deleted, select next remaining case or null
+      if (selectedCaseId === caseId) {
+        const remaining = cases.filter(c => c.id !== caseId);
+        setSelectedCaseId(remaining.length > 0 ? remaining[0].id : null);
+      }
+
+      showToast(`Case ${caseNum} and associated dossiers deleted successfully.`);
+      return { success: true };
+    } catch (err) {
+      console.error('Delete case error:', err);
+      showToast('Error deleting case: ' + err.message, 'error');
+      return { success: false, message: err.message };
+    }
+  };
+
+  const deleteUserAccount = async (userId) => {
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      showToast('Personnel account removed from practice records.');
+      return { success: true };
+    } catch (err) {
+      console.error('Delete user error:', err);
+      showToast('Error deleting staff: ' + err.message, 'error');
+      return { success: false, message: err.message };
+    }
+  };
+
+  const resetUserPassword = async (email) => {
+    try {
+      if (!email) {
+        showToast('Valid email required for password reset.', 'error');
+        return { success: false };
+      }
+      await sendPasswordResetEmail(auth, email);
+      showToast(`Password reset link dispatched to ${email}!`);
+      return { success: true };
+    } catch (err) {
+      console.error('Password reset error:', err);
+      showToast('Could not dispatch password reset: ' + err.message, 'error');
+      return { success: false, message: err.message };
+    }
+  };
+
+  const deleteAllPracticeData = async () => {
+    try {
+      // Delete all cases
+      for (const c of cases) {
+        try { await deleteDoc(doc(db, 'cases', c.id)); } catch (e) {}
+      }
+      // Delete all documents
+      for (const d of documents) {
+        try { await deleteDoc(doc(db, 'documents', d.id)); } catch (e) {}
+      }
+      // Delete all tasks
+      for (const t of tasks) {
+        try { await deleteDoc(doc(db, 'tasks', t.id)); } catch (e) {}
+      }
+      // Delete all conferences
+      for (const cf of conferences) {
+        try { await deleteDoc(doc(db, 'conferences', cf.id)); } catch (e) {}
+      }
+      // Delete all notifications
+      for (const n of notifications) {
+        try { await deleteDoc(doc(db, 'notifications', n.id)); } catch (e) {}
+      }
+
+      setSelectedCaseId(null);
+      showToast('All practice litigation records, documents, and tasks have been cleared.');
+      return { success: true };
+    } catch (err) {
+      console.error('Delete all data error:', err);
+      showToast('Error during system reset: ' + err.message, 'error');
       return { success: false, message: err.message };
     }
   };
@@ -921,6 +1031,10 @@ export const AppProvider = ({ children }) => {
         updateSystemConfig,
         createCase,
         updateCase,
+        deleteCase,
+        deleteUserAccount,
+        resetUserPassword,
+        deleteAllPracticeData,
         updateCaseDriveLink,
         provisionCaseInGoogleDrive,
         uploadDocument,

@@ -11,9 +11,11 @@ import {
   Gavel,
   FolderOpen,
   Eye,
-  Sparkles
+  Sparkles,
+  Edit3
 } from 'lucide-react';
 import { OrderReaderModal } from '../staff_console/OrderReaderModal';
+import { CaseRegistrationModal } from '../software_admin/CaseRegistrationModal';
 
 export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false }) => {
   const { cases, setSelectedCaseId, switchRole, systemConfig } = useApp();
@@ -24,6 +26,7 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
   const [selectedForum, setSelectedForum] = useState('ALL');
   const [selectedUrgency, setSelectedUrgency] = useState('ALL');
   const [readingCaseOrder, setReadingCaseOrder] = useState(null);
+  const [caseToEdit, setCaseToEdit] = useState(null);
 
   const filteredCases = baseCases.filter(c => {
     const matchesSearch = 
@@ -244,6 +247,18 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCaseToEdit(c)}
+                      className={`p-2 rounded-full border transition-colors ${
+                        isCritical 
+                          ? 'border-white/20 text-white hover:bg-white/10' 
+                          : 'border-warm-borderSubtle text-warm-graphite hover:bg-white'
+                      }`}
+                      title="Edit Case Details"
+                    >
+                      <Edit3 className="w-4 h-4 text-terracotta" />
+                    </button>
+
                     {c.driveFolderUrl && (
                       <a
                         href={c.driveFolderUrl}
@@ -298,6 +313,13 @@ export const MasterCasesBoard = ({ casesList, customTitle, isStaffScope = false 
           name: `Order_Sheet_${readingCaseOrder?.caseNumber}.pdf`
         }}
         caseData={readingCaseOrder}
+      />
+
+      {/* Edit Case Modal */}
+      <CaseRegistrationModal
+        isOpen={Boolean(caseToEdit)}
+        onClose={() => setCaseToEdit(null)}
+        caseToEdit={caseToEdit}
       />
 
     </div>

@@ -132,7 +132,13 @@ export const requestGoogleAccessToken = () => {
  * Creates a case directory in Google Drive and provisions the standard subdirectories
  * Uses the authentic Google Drive REST API to obtain real Google Drive folder IDs
  */
-export const createCaseFolderInDrive = async ({ caseNumber, clientName, courtCode, folderTemplate = [] }) => {
+export const createCaseFolderInDrive = async ({ 
+  caseNumber, 
+  clientName, 
+  courtCode, 
+  folderTemplate = [],
+  masterFolderId = null
+}) => {
   const token = getStoredGoogleToken();
   const folderName = `[${caseNumber}] ${clientName} (${courtCode || 'Court'})`;
 
@@ -147,18 +153,23 @@ export const createCaseFolderInDrive = async ({ caseNumber, clientName, courtCod
   }
 
   try {
-    // 1. Create the parent Case Folder in Google Drive
+    // 1. Create the parent Case Folder in Google Drive (nested inside masterFolderId if configured)
+    const folderPayload = {
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder',
+      description: `Litigation Dossier for ${caseNumber} (${clientName}) managed by JurisFlow.`
+    };
+    if (masterFolderId && isValidGoogleDriveId(masterFolderId)) {
+      folderPayload.parents = [masterFolderId];
+    }
+
     const createFolderResp = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        name: folderName,
-        mimeType: 'application/vnd.google-apps.folder',
-        description: `Litigation Dossier for ${caseNumber} (${clientName}) managed by JurisFlow.`
-      })
+      body: JSON.stringify(folderPayload)
     });
 
     if (!createFolderResp.ok) {

@@ -31,6 +31,7 @@ import { ShareBriefModal } from './ShareBriefModal';
 import { HearingDateModal } from './HearingDateModal';
 import { OrderFetcherModal } from './OrderFetcherModal';
 import { OrderReaderModal } from './OrderReaderModal';
+import { CaseRegistrationModal } from '../software_admin/CaseRegistrationModal';
 import { extractDriveFolderId, isValidGoogleDriveId } from '../../services/googleWorkspace';
 
 export const CaseWorkspace = () => {
@@ -60,6 +61,7 @@ export const CaseWorkspace = () => {
   const [customDriveInput, setCustomDriveInput] = useState('');
   const [isProvisioningDrive, setIsProvisioningDrive] = useState(false);
   const [selectedOrderToRead, setSelectedOrderToRead] = useState(null);
+  const [isEditCaseOpen, setIsEditCaseOpen] = useState(false);
 
   if (!selectedCase) {
     return (
@@ -235,6 +237,13 @@ export const CaseWorkspace = () => {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
           >
             <Calendar className="w-3.5 h-3.5 text-amber-600" /> Log Hearing Date
+          </button>
+
+          <button
+            onClick={() => setIsEditCaseOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-terracotta" /> Edit Docket
           </button>
 
           <button
@@ -710,6 +719,12 @@ export const CaseWorkspace = () => {
         onClose={() => setSelectedOrderToRead(null)}
         order={selectedOrderToRead}
         caseData={selectedCase}
+      />
+
+      <CaseRegistrationModal
+        isOpen={isEditCaseOpen}
+        onClose={() => setIsEditCaseOpen(false)}
+        caseToEdit={selectedCase}
       />
 
     </div>
