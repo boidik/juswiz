@@ -127,8 +127,32 @@ export const getExactFileDriveUrl = (doc) => {
 };
 
 /**
+ * Validates whether the currently stored Google Access Token is valid and unexpired
+ */
+export const checkGoogleTokenValidity = async () => {
+  const token = getStoredGoogleToken();
+  if (!token) return false;
+
+  try {
+    const res = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${token}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.expires_in && Number(data.expires_in) > 10) {
+        return true;
+      }
+    }
+    // Token is expired or rejected by Google
+    clearStoredGoogleToken();
+    return false;
+  } catch (err) {
+    console.warn('Google token validation check:', err);
+    return false;
+  }
+};
+
+/**
  * Triggers Google Identity Services OAuth popup to obtain an access token
- * with drive.file and calendar.events scopes
+ * with drive and calendar.events scopes
  */
 export const requestGoogleAccessToken = () => {
   return new Promise((resolve, reject) => {
@@ -136,7 +160,7 @@ export const requestGoogleAccessToken = () => {
       try {
         const client = window.google.accounts.oauth2.initTokenClient({
           client_id: GOOGLE_CLIENT_ID,
-          scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
+          scope: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
           callback: (response) => {
             if (response.error) {
               console.error('Google OAuth error:', response.error);
@@ -149,7 +173,7 @@ export const requestGoogleAccessToken = () => {
             }
           }
         });
-        client.requestAccessToken();
+        client.requestAccessToken({ prompt: 'select_account' });
       } catch (err) {
         console.error('Failed to init Google Token Client:', err);
         reject(err);
@@ -169,15 +193,17 @@ export const createCaseFolderInDrive = async ({
   clientName, 
   courtCode, 
   folderTemplate = [],
-  masterFolderId = null
+  masterFolderId = null,
+  accessToken = null
 }) => {
-  const token = getStoredGoogleToken();
+  const token = accessToken || getStoredGoogleToken();
   const folderName = `[${caseNumber}] ${clientName} (${courtCode || 'Court'})`;
 
   if (!token) {
     return {
       success: false,
       isFallback: true,
+      isAuthError: true,
       folderId: null,
       folderUrl: 'https://drive.google.com/drive/my-drive',
       message: 'Google Drive not connected. Please connect Google Workspace to auto-create folder.'
@@ -195,7 +221,7 @@ export const createCaseFolderInDrive = async ({
       folderPayload.parents = [masterFolderId];
     }
 
-    const createFolderResp = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink', {
+    let createFolderResp = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -204,15 +230,53 @@ export const createCaseFolderInDrive = async ({
       body: JSON.stringify(folderPayload)
     });
 
-    if (!createFolderResp.ok) {
-      const errData = await createFolderResp.json().catch(() => ({}));
-      console.warn('Google Drive create folder failed:', errData);
+    // Check for auth error (401 Unauthorized / expired token)
+    if (createFolderResp.status === 401) {
+      clearStoredGoogleToken();
       return {
         success: false,
         isFallback: true,
+        isAuthError: true,
         folderId: null,
         folderUrl: 'https://drive.google.com/drive/my-drive',
-        message: errData.error?.message || 'Drive API returned an error'
+        message: 'Google authorization expired. Please approve the Google sign-in prompt to refresh access.'
+      };
+    }
+
+    // If nesting inside masterFolderId failed due to permissions (403/404), fall back to creating in user's root Drive
+    if (!createFolderResp.ok && folderPayload.parents) {
+      console.warn('Master folder nesting failed, creating in user root Drive...');
+      delete folderPayload.parents;
+      createFolderResp = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(folderPayload)
+      });
+    }
+
+    if (!createFolderResp.ok) {
+      const errData = await createFolderResp.json().catch(() => ({}));
+      console.warn('Google Drive create folder failed:', errData);
+      const isAuthError = createFolderResp.status === 401 || 
+        errData.error?.message?.includes('invalid authentication credentials') ||
+        errData.error?.status === 'UNAUTHENTICATED';
+      
+      if (isAuthError) {
+        clearStoredGoogleToken();
+      }
+
+      return {
+        success: false,
+        isFallback: true,
+        isAuthError,
+        folderId: null,
+        folderUrl: 'https://drive.google.com/drive/my-drive',
+        message: isAuthError 
+          ? 'Google authorization expired. Please sign in to Google to renew.'
+          : (errData.error?.message || 'Drive API returned an error')
       };
     }
 
@@ -289,8 +353,8 @@ export const createCaseFolderInDrive = async ({
 /**
  * Uploads a file directly into a Google Drive folder using Multipart Upload
  */
-export const uploadFileToDrive = async ({ file, parentFolderId, fileName, subfolderName }) => {
-  const token = getStoredGoogleToken();
+export const uploadFileToDrive = async ({ file, parentFolderId, fileName, subfolderName, accessToken = null }) => {
+  const token = accessToken || getStoredGoogleToken();
   const safeName = fileName || file?.name || 'document.pdf';
 
   if (!token || !file || !(file instanceof Blob || file instanceof File)) {
@@ -383,9 +447,13 @@ export const uploadFileToDrive = async ({ file, parentFolderId, fileName, subfol
     } else {
       const errData = await uploadResp.json().catch(() => ({}));
       console.warn('Drive file upload failed:', errData);
+      if (uploadResp.status === 401) {
+        clearStoredGoogleToken();
+      }
       return {
         success: false,
         isFallback: true,
+        isAuthError: uploadResp.status === 401,
         fileId: null,
         driveUrl: parentFolderId ? `https://drive.google.com/drive/folders/${parentFolderId}` : `https://drive.google.com/drive/my-drive`
       };

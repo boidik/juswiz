@@ -666,7 +666,7 @@ export const CaseWorkspace = () => {
                     <Sparkles className="w-3.5 h-3.5 text-terracotta" /> Auto-Create Folder in Google Drive
                   </h4>
                   <p className="text-[11px] text-warm-muted">
-                    Provisions case folder & all 6 subdirectories via Google Drive API
+                    Provisions case folder & all 7 subdirectories via Google Drive API
                   </p>
                 </div>
                 <button

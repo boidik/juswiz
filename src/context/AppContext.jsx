@@ -27,6 +27,7 @@ import {
   getStoredGoogleToken,
   setStoredGoogleToken,
   clearStoredGoogleToken,
+  checkGoogleTokenValidity,
   requestGoogleAccessToken,
   createCaseFolderInDrive,
   uploadFileToDrive,
@@ -65,6 +66,20 @@ export const AppProvider = ({ children }) => {
 
   // Google Workspace Connected State
   const [isGoogleConnected, setIsGoogleConnected] = useState(Boolean(getStoredGoogleToken()));
+
+  // Verify and keep Google Workspace access token in sync
+  useEffect(() => {
+    const verifyToken = async () => {
+      const token = getStoredGoogleToken();
+      if (token) {
+        const isValid = await checkGoogleTokenValidity();
+        setIsGoogleConnected(isValid);
+      } else {
+        setIsGoogleConnected(false);
+      }
+    };
+    verifyToken();
+  }, []);
 
   // UI Modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -317,6 +332,7 @@ export const AppProvider = ({ children }) => {
 
   const connectGoogleWorkspace = async () => {
     try {
+      clearStoredGoogleToken();
       const token = await requestGoogleAccessToken();
       setIsGoogleConnected(true);
       showToast('Google Workspace (Drive, Meet & Calendar) connected successfully!');
@@ -472,14 +488,18 @@ export const AppProvider = ({ children }) => {
         effectiveDriveUrl = `https://drive.google.com/drive/folders/${userFolderId}`;
       } else {
         // No specific drive link provided: create a NEW drive folder INSIDE the mother/root folder!
-        if (isGoogleConnected) {
+        const storedToken = getStoredGoogleToken();
+        const isTokenValid = storedToken ? await checkGoogleTokenValidity() : false;
+
+        if (isGoogleConnected && isTokenValid && storedToken) {
           try {
             const driveResult = await createCaseFolderInDrive({
               caseNumber: caseData.caseNumber,
               clientName: caseData.clientName,
               courtCode: caseData.courtCode,
               folderTemplate: systemConfig.driveFolderTemplate || [],
-              masterFolderId
+              masterFolderId,
+              accessToken: storedToken
             });
             if (driveResult?.success && driveResult?.folderId) {
               driveFolderId = driveResult.folderId;
@@ -596,27 +616,55 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const provisionCaseInGoogleDrive = async (caseId) => {
+  const provisionCaseInGoogleDrive = async (caseId, forceReauth = false) => {
     try {
       const targetCase = cases.find(c => c.id === caseId);
       if (!targetCase) return { success: false, message: 'Case not found' };
 
-      if (!isGoogleConnected) {
+      let token = getStoredGoogleToken();
+      let isTokenValid = token ? await checkGoogleTokenValidity() : false;
+
+      // If token missing, invalid, or reauth forced, prompt for fresh authorization
+      if (!token || !isTokenValid || forceReauth || !isGoogleConnected) {
+        showToast('Authorizing Google Workspace for folder creation...', 'info');
         const connectRes = await connectGoogleWorkspace();
-        if (!connectRes?.success) return { success: false, message: 'Google authorization required' };
+        if (!connectRes?.success || !connectRes?.token) {
+          showToast('Google authorization required to auto-create folder.', 'error');
+          return { success: false, message: 'Google authorization required' };
+        }
+        token = connectRes.token;
       }
 
       showToast('Creating case folder inside Mother Folder in Google Drive...');
       const masterFolderId = systemConfig.firmBranding?.masterDriveFolderId || 
         extractDriveFolderId(systemConfig.firmBranding?.masterDriveUrl);
 
-      const result = await createCaseFolderInDrive({
+      let result = await createCaseFolderInDrive({
         caseNumber: targetCase.caseNumber,
         clientName: targetCase.clientName,
         courtCode: targetCase.courtCode,
         folderTemplate: systemConfig.driveFolderTemplate || [],
-        masterFolderId
+        masterFolderId,
+        accessToken: token
       });
+
+      // If Google returned an auth error (401 / expired token), prompt re-auth and auto-retry once
+      if (!result.success && result.isAuthError) {
+        clearStoredGoogleToken();
+        setIsGoogleConnected(false);
+        showToast('Google session expired. Authorizing Google Workspace...', 'info');
+        const retryAuth = await connectGoogleWorkspace();
+        if (retryAuth?.success && retryAuth?.token) {
+          result = await createCaseFolderInDrive({
+            caseNumber: targetCase.caseNumber,
+            clientName: targetCase.clientName,
+            courtCode: targetCase.courtCode,
+            folderTemplate: systemConfig.driveFolderTemplate || [],
+            masterFolderId,
+            accessToken: retryAuth.token
+          });
+        }
+      }
 
       if (result.success && result.folderId) {
         await updateDoc(doc(db, 'cases', caseId), {
