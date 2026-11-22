@@ -63,12 +63,25 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
   const dedicatedFolderName = systemConfig?.dedicatedOrderFolder || '05_AutoFetched_Court_Orders';
   const microserviceUrl = systemConfig?.microserviceUrl || 'http://localhost:5001';
 
+  const caseNumber = targetCase?.caseNumber || 'T.S. (COM) 14 of 2026';
+  const cnrNumber = targetCase?.cnrNumber || 'WBNP190000502026';
+  const courtName = targetCase?.courtName || 'Commercial Court, Rajarhat';
+  const clientName = targetCase?.clientName || 'Vikram Bhansali';
+
+  const isCalHc = Boolean(
+    targetCase?.courtCode?.includes('CAL_HC') || 
+    courtName?.toLowerCase().includes('calcutta high court') ||
+    courtName?.toLowerCase().includes('calcutta hc') ||
+    cnrNumber?.toUpperCase().startsWith('WBHC') ||
+    cnrNumber?.toUpperCase().startsWith('WBCH')
+  );
+
   // Check microservice health & load live court captcha session on mount
   useEffect(() => {
     if (!isOpen) return;
     checkMicroserviceHealth();
     loadLiveCourtCaptcha();
-  }, [isOpen]);
+  }, [isOpen, targetCase?.id]);
 
   const checkMicroserviceHealth = async () => {
     try {
@@ -87,14 +100,21 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
     setIsLoadingCaptcha(true);
     setCaptchaError(null);
     try {
-      const res = await fetch(`${microserviceUrl}/api/court/captcha-session`);
+      const params = new URLSearchParams({
+        courtCode: targetCase?.courtCode || '',
+        courtName: courtName || '',
+        cnrNumber: cnrNumber || '',
+        caseNumber: caseNumber || '',
+        caseType: targetCase?.caseType || ''
+      });
+      const res = await fetch(`${microserviceUrl}/api/court/captcha-session?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
         setSessionId(data.sessionId);
         setCaptchaDataUrl(data.captchaDataUrl);
         setCaptchaInput('');
       } else {
-        setCaptchaError(data.error || 'Could not initialize eCourts session.');
+        setCaptchaError(data.error || 'Could not initialize court gateway session.');
       }
     } catch (err) {
       setCaptchaError(`Could not reach Court Microservice on ${microserviceUrl}. Ensure backend daemon is active.`);
@@ -105,17 +125,13 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
 
   if (!isOpen || !targetCase) return null;
 
-  const caseNumber = targetCase.caseNumber || 'T.S. (COM) 14 of 2026';
-  const cnrNumber = targetCase.cnrNumber || 'WBNP190000502026';
-  const courtName = targetCase.courtName || 'Commercial Court, Rajarhat';
-  const clientName = targetCase.clientName || 'Vikram Bhansali';
-
   const handleCopyCnr = () => {
-    navigator.clipboard.writeText(cnrNumber);
-    showToast(`CNR Number ${cnrNumber} copied to clipboard!`);
+    const textToCopy = isCalHc ? caseNumber : cnrNumber;
+    navigator.clipboard.writeText(textToCopy);
+    showToast(`${isCalHc ? 'Case Number' : 'CNR Number'} ${textToCopy} copied to clipboard!`);
   };
 
-  // Submit Human Captcha directly to eCourts via Microservice
+  // Submit Human Captcha directly to Court Gateway via Microservice
   const handleFetchWithCaptcha = async (e) => {
     if (e) e.preventDefault();
     if (!captchaInput || captchaInput.trim().length < 3) {
@@ -136,7 +152,10 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
           captchaCode: captchaInput.trim(),
           caseId: targetCase.id,
           caseNumber,
+          caseType: targetCase.caseType,
+          courtCode: targetCase.courtCode,
           courtName,
+          courtType: isCalHc ? 'CALCUTTA_HIGH_COURT' : 'ECOURTS_LOWER_COURTS',
           driveFolderId: targetCase.driveFolderId,
           googleAccessToken,
           dedicatedFolderName
@@ -158,7 +177,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
               orderDate: ord.orderDate,
               courtName,
               summary: ord.orderSummary || 'Authentic Signed Court Order',
-              bench: targetCase.bench,
+              bench: ord.coram || targetCase.bench,
               localUrl: ord.localUrl,
               driveUrl: ord.driveUrl,
               driveFileId: ord.driveFileId,
@@ -173,7 +192,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
           setCaptchaInput('');
           setCaptchaError(data.error);
         } else {
-          setCaptchaError(data.error || 'Failed to query eCourts database');
+          setCaptchaError(data.error || 'Failed to query court database');
         }
         showToast(data.error || 'Failed to fetch court orders', 'error');
       }
@@ -186,13 +205,21 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
   };
 
   // Trigger On-Demand Automated Microservice Sync (OCR)
-  const handleTriggerOnDemandSync = async () => {
+  const handleTriggerOnDemandSync = async (customOverrides = null) => {
     setIsSyncing(true);
     setSyncResult(null);
+
+    const queryCaseNumber = customOverrides?.caseNumber || caseNumber;
+    const queryCnrNumber = customOverrides?.cnrNumber || cnrNumber;
+    const queryCourtCode = customOverrides?.courtCode || targetCase.courtCode;
+    const queryCourtName = customOverrides?.courtName || courtName;
+    const queryCaseType = customOverrides?.caseType || targetCase.caseType;
+    const queryIsCalHc = isCalHc || Boolean(customOverrides?.isCalHc);
+
     setSyncLogs([
       `[00.0s] Handshaking with self-hosted Court Sync Microservice (${microserviceUrl})...`,
-      `[00.3s] Initializing live eCourts CIS session for Case: ${caseNumber}...`,
-      `[00.7s] Querying court database registry for CNR: ${cnrNumber}...`
+      `[00.3s] Initializing live ${queryIsCalHc ? 'Calcutta High Court (calcuttahighcourt.gov.in)' : 'eCourts CIS'} session for Case: ${queryCaseNumber}...`,
+      `[00.7s] Querying court database registry for ${queryIsCalHc ? queryCaseNumber : 'CNR: ' + queryCnrNumber}...`
     ]);
 
     try {
@@ -202,9 +229,11 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           caseId: targetCase.id,
-          cnrNumber,
-          caseNumber,
-          courtName,
+          cnrNumber: queryCnrNumber,
+          caseNumber: queryCaseNumber,
+          caseType: queryCaseType,
+          courtCode: queryCourtCode,
+          courtName: queryCourtName,
           driveFolderId: targetCase.driveFolderId,
           googleAccessToken,
           dedicatedFolderName
@@ -229,9 +258,9 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
               caseId: targetCase.id,
               fileName: ord.fileName,
               orderDate: ord.orderDate,
-              courtName,
+              courtName: queryCourtName,
               summary: ord.orderSummary || 'Authentic Signed Court Order',
-              bench: targetCase.bench,
+              bench: ord.coram || targetCase.bench,
               localUrl: ord.localUrl,
               driveUrl: ord.driveUrl,
               driveFileId: ord.driveFileId,
@@ -242,10 +271,10 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
       } else {
         setSyncLogs(prev => [
           ...prev,
-          `[03.5s] Notice: ${data.error || 'eCourts security challenge active.'}`
+          `[03.5s] Notice: ${data.error || 'Court security challenge active.'}`
         ]);
         if (data.requiresHumanCaptcha) {
-          showToast('eCourts Security Gate active. Please enter the court captcha above to complete fetch.', 'error');
+          showToast('Court Security Gate active. Please enter the court captcha above to complete fetch.', 'error');
         } else {
           showToast(data.error || 'Sync notice', 'error');
         }
@@ -337,7 +366,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <span className="text-[10px] uppercase font-bold tracking-widest text-terracotta bg-terracotta-soft px-2.5 py-0.5 rounded-pill border border-terracotta/20">
-                  Judicial Database Sync
+                  {isCalHc ? 'Calcutta High Court Gateway' : 'Judicial Database Sync'}
                 </span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-pill border flex items-center gap-1.5 ${
                   microserviceStatus === 'ONLINE' 
@@ -345,11 +374,11 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                     : 'text-amber-800 bg-amber-100/90 border-amber-200'
                 }`}>
                   <span className={`w-2 h-2 rounded-full ${microserviceStatus === 'ONLINE' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                  Microservice: {microserviceStatus} (Port 5001)
+                  Microservice: {microserviceStatus} (Dual Engine)
                 </span>
               </div>
               <h2 className="text-sm sm:text-lg font-bold text-warm-obsidian tracking-tight mt-0.5 sm:mt-1">
-                Court Database Automation & Ingestion
+                {isCalHc ? 'Calcutta High Court Order Fetching & Ingestion' : 'Court Database Automation & Ingestion'}
               </h2>
             </div>
           </div>
@@ -368,7 +397,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
             <span className="font-bold text-warm-obsidian bg-white px-2.5 sm:px-3 py-1 rounded-pill border border-warm-borderSubtle">
               {caseNumber}
             </span>
-            <span className="text-warm-muted">CNR: <strong className="text-warm-obsidian">{cnrNumber}</strong></span>
+            <span className="text-warm-muted">{isCalHc ? 'Court: ' : 'CNR: '}<strong className="text-warm-obsidian">{isCalHc ? courtName : cnrNumber}</strong></span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -378,9 +407,9 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
             <button
               onClick={handleCopyCnr}
               className="px-2.5 sm:px-3 py-1 rounded-pill bg-white hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
-              title="Copy 16-digit CNR for eCourts search"
+              title={isCalHc ? "Copy Case Number" : "Copy 16-digit CNR for eCourts search"}
             >
-              <Copy className="w-3 h-3 text-terracotta" /> Copy CNR
+              <Copy className="w-3 h-3 text-terracotta" /> {isCalHc ? 'Copy Case No' : 'Copy CNR'}
             </button>
           </div>
         </div>
@@ -396,7 +425,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
             }`}
           >
             <Cpu className="w-4 h-4" />
-            <span>1. Court Sync Microservice</span>
+            <span>1. {isCalHc ? 'Calcutta HC Sync Microservice' : 'Court Sync Microservice'}</span>
           </button>
 
           <button
@@ -408,7 +437,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
             }`}
           >
             <Globe className="w-4 h-4" />
-            <span>2. Live eCourts Portal Gateway</span>
+            <span>2. {isCalHc ? 'Live Calcutta HC Portal Gateway' : 'Live eCourts Portal Gateway'}</span>
           </button>
 
           <button
@@ -436,10 +465,10 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-warm-borderSubtle/60 pb-3">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-terracotta bg-terracotta-soft px-2.5 py-0.5 rounded-pill">
-                      100% Autonomous AI Sync · Zero Human Intervention
+                      {isCalHc ? 'Calcutta High Court Autonomous AI Sync · Dual-Side Engine' : '100% Autonomous AI Sync · Zero Human Intervention'}
                     </span>
                     <h3 className="text-sm font-bold text-warm-obsidian mt-1">
-                      Direct eCourts National Database Integration
+                      {isCalHc ? 'Direct Calcutta High Court Portal Integration (calcuttahighcourt.gov.in)' : 'Direct eCourts National Database Integration'}
                     </h3>
                   </div>
                   <span className="text-[11px] font-mono text-warm-muted">
@@ -448,18 +477,22 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                 </div>
 
                 <p className="text-xs text-warm-graphite leading-relaxed">
-                  Queries eCourts CIS autonomously using deep-learning neural OCR and dynamic anti-bot header negotiation. Automatically discovers all signed judicial orders, streams the official PDFs, and archives them into <strong>/{dedicatedFolderName}/</strong> without requiring manual captcha entry.
+                  {isCalHc ? (
+                    <>Direct automated query against the official Calcutta High Court portal (Appellate & Original Side). Negotiates Laravel CSRF security tokens, uses deep-learning neural OCR (ddddocr) to solve High Court captchas in ~0.1s, downloads signed judicial PDF orders directly from <strong>calcuttahighcourt.gov.in/show_pdf</strong>, and archives them into <strong>/{dedicatedFolderName}/</strong>.</>
+                  ) : (
+                    <>Queries eCourts CIS autonomously using deep-learning neural OCR and dynamic anti-bot header negotiation. Automatically discovers all signed judicial orders, streams the official PDFs, and archives them into <strong>/{dedicatedFolderName}/</strong> without requiring manual captcha entry.</>
+                  )}
                 </p>
 
                 {/* Big Action Button */}
                 <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
                   <button
-                    onClick={handleTriggerOnDemandSync}
+                    onClick={() => handleTriggerOnDemandSync()}
                     disabled={isSyncing}
                     className="capsule-btn-dark text-xs w-full sm:w-auto shrink-0 shadow-md py-3 px-6 flex items-center justify-between gap-3 disabled:opacity-50"
                   >
                     <span className="font-bold text-sm tracking-wide">
-                      {isSyncing ? 'Fetching Authentic Court Orders...' : 'Sync Court Orders Now (100% Automated)'}
+                      {isSyncing ? 'Fetching Authentic Court Orders...' : `Sync ${isCalHc ? 'Calcutta HC Orders' : 'Court Orders'} Now (100% Automated)`}
                     </span>
                     <div className="knob">
                       <RefreshCw className={`w-4 h-4 text-white ${isSyncing ? 'animate-spin' : ''}`} />
@@ -471,6 +504,31 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                     <span>Nightly Auto-Sync: 8:00 PM (0 20 * * *)</span>
                   </div>
                 </div>
+
+                {isCalHc && (
+                  <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 text-amber-900 font-medium">
+                      <Sparkles className="w-3.5 h-3.5 text-terracotta shrink-0" />
+                      <span>Calcutta HC Live Verification: Test on verified court matter <strong>WPA 1 of 2024</strong> (10 signed orders)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerOnDemandSync({
+                        caseNumber: 'WPA 1 of 2024',
+                        cnrNumber: 'WBCHCA0000012024',
+                        courtCode: 'CAL_HC_AS',
+                        courtName: 'Calcutta High Court (Appellate Side)',
+                        caseType: 'WPA',
+                        isCalHc: true
+                      })}
+                      disabled={isSyncing}
+                      className="px-3 py-1 rounded-pill bg-terracotta hover:bg-terracotta/90 text-white font-bold text-[11px] shadow-xs shrink-0 flex items-center gap-1 transition-all disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+                      <span>Fetch WPA 1/2024</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Live Daemon Log Stream */}
                 {syncLogs.length > 0 && (
@@ -545,13 +603,15 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                       Manual Fallback Session
                     </span>
                     <h3 className="text-xs font-bold text-warm-obsidian mt-0.5">
-                      Live Human Verification (Case-Sensitive Captcha)
+                      Live Human Verification ({isCalHc ? 'Calcutta HC Gateway' : 'eCourts Gateway'})
                     </h3>
                   </div>
                 </div>
 
                 <p className="text-xs text-warm-graphite leading-relaxed">
-                  If you prefer to verify or solve a specific captcha challenge manually, use the live session gateway below (mixed-case alphanumeric supported):
+                  {isCalHc
+                    ? 'If you prefer to verify or solve the Calcutta High Court security challenge manually, use the live session gateway below (case-sensitive alphanumeric):'
+                    : 'If you prefer to verify or solve a specific captcha challenge manually, use the live session gateway below (mixed-case alphanumeric supported):'}
                 </p>
 
                 {/* Captcha Box */}
@@ -567,7 +627,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                       ) : captchaDataUrl ? (
                         <img 
                           src={captchaDataUrl} 
-                          alt="eCourts Captcha" 
+                          alt={isCalHc ? "Calcutta High Court Captcha" : "eCourts Captcha"} 
                           className="h-9 w-auto object-contain rounded select-none" 
                         />
                       ) : (
@@ -630,60 +690,114 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                   <ShieldCheck className="w-4 h-4 text-terracotta" /> Direct Citizen & Advocate Portal Access
                 </p>
                 <p className="text-warm-graphite">
-                  Use the 1-click Copy CNR button at the top to open the official portal and view all uploaded bench orders. You can also paste the court order text or directives directly below to archive them into <strong>/{dedicatedFolderName}/</strong> immediately.
+                  {isCalHc
+                    ? <>Search directly on the official Calcutta High Court portal (Appellate & Original Side) for <strong>{caseNumber}</strong>. You can view all bench orders or paste order directives below to archive them into <strong>/{dedicatedFolderName}/</strong> immediately.</>
+                    : <>Use the 1-click Copy CNR button at the top to open the official portal and view all uploaded bench orders. You can also paste the court order text or directives directly below to archive them into <strong>/{dedicatedFolderName}/</strong> immediately.</>}
                 </p>
               </div>
 
               {/* Direct Portal Links */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="p-4 rounded-3xl bg-white border border-warm-borderSubtle shadow-xs flex flex-col justify-between space-y-3">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-terracotta bg-terracotta-soft px-2 py-0.5 rounded-pill">
-                      National Portal
-                    </span>
-                    <h4 className="text-sm font-bold text-warm-obsidian mt-1">
-                      eCourts Services (CNR Search)
-                    </h4>
-                    <p className="text-xs text-warm-muted mt-1 leading-normal">
-                      Query CNR <strong>{cnrNumber}</strong> across all Indian District & Commercial Courts.
-                    </p>
+              {isCalHc ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="p-4 rounded-3xl bg-white border border-warm-borderSubtle shadow-xs flex flex-col justify-between space-y-3">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-terracotta bg-terracotta-soft px-2 py-0.5 rounded-pill">
+                        High Court Orders
+                      </span>
+                      <h4 className="text-sm font-bold text-warm-obsidian mt-1">
+                        Calcutta HC Order & Judgment Search
+                      </h4>
+                      <p className="text-xs text-warm-muted mt-1 leading-normal">
+                        Query official signed decrees for <strong>{caseNumber}</strong> on calcuttahighcourt.gov.in.
+                      </p>
+                    </div>
+
+                    <a
+                      href="https://www.calcuttahighcourt.gov.in/order_judgment_search"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="capsule-btn-dark text-xs justify-center w-full"
+                    >
+                      <span>Open Calcutta HC Orders</span>
+                      <div className="knob"><ExternalLink className="w-3 h-3 text-white" /></div>
+                    </a>
                   </div>
 
-                  <a
-                    href="https://services.ecourts.gov.in/ecourtindia_v6/?p=home/index"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="capsule-btn-dark text-xs justify-center w-full"
-                  >
-                    <span>Open eCourts Portal</span>
-                    <div className="knob"><ExternalLink className="w-3 h-3 text-white" /></div>
-                  </a>
-                </div>
+                  <div className="p-4 rounded-3xl bg-white border border-warm-borderSubtle shadow-xs flex flex-col justify-between space-y-3">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-pill">
+                        Main Portal
+                      </span>
+                      <h4 className="text-sm font-bold text-warm-obsidian mt-1">
+                        High Court of Calcutta Portal
+                      </h4>
+                      <p className="text-xs text-warm-muted mt-1 leading-normal">
+                        Daily cause lists, notices, and registry rosters for Appellate and Original Sides.
+                      </p>
+                    </div>
 
-                <div className="p-4 rounded-3xl bg-white border border-warm-borderSubtle shadow-xs flex flex-col justify-between space-y-3">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-pill">
-                      Commercial Division
-                    </span>
-                    <h4 className="text-sm font-bold text-warm-obsidian mt-1">
-                      Commercial Court, Rajarhat
-                    </h4>
-                    <p className="text-xs text-warm-muted mt-1 leading-normal">
-                      North 24 Parganas District Court daily cause list & commercial orders.
-                    </p>
+                    <a
+                      href="https://www.calcuttahighcourt.gov.in/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="capsule-btn-dark text-xs justify-center w-full"
+                    >
+                      <span>Open Calcutta HC Portal</span>
+                      <div className="knob"><ExternalLink className="w-3 h-3 text-white" /></div>
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="p-4 rounded-3xl bg-white border border-warm-borderSubtle shadow-xs flex flex-col justify-between space-y-3">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-terracotta bg-terracotta-soft px-2 py-0.5 rounded-pill">
+                        National Portal
+                      </span>
+                      <h4 className="text-sm font-bold text-warm-obsidian mt-1">
+                        eCourts Services (CNR Search)
+                      </h4>
+                      <p className="text-xs text-warm-muted mt-1 leading-normal">
+                        Query CNR <strong>{cnrNumber}</strong> across all Indian District & Commercial Courts.
+                      </p>
+                    </div>
+
+                    <a
+                      href="https://services.ecourts.gov.in/ecourtindia_v6/?p=home/index"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="capsule-btn-dark text-xs justify-center w-full"
+                    >
+                      <span>Open eCourts Portal</span>
+                      <div className="knob"><ExternalLink className="w-3 h-3 text-white" /></div>
+                    </a>
                   </div>
 
-                  <a
-                    href="https://north24parganas.dcourts.gov.in/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="capsule-btn-dark text-xs justify-center w-full"
-                  >
-                    <span>Open Court Website</span>
-                    <div className="knob"><ExternalLink className="w-3 h-3 text-white" /></div>
-                  </a>
+                  <div className="p-4 rounded-3xl bg-white border border-warm-borderSubtle shadow-xs flex flex-col justify-between space-y-3">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-pill">
+                        Commercial Division
+                      </span>
+                      <h4 className="text-sm font-bold text-warm-obsidian mt-1">
+                        Commercial Court, Rajarhat
+                      </h4>
+                      <p className="text-xs text-warm-muted mt-1 leading-normal">
+                        North 24 Parganas District Court daily cause list & commercial orders.
+                      </p>
+                    </div>
+
+                    <a
+                      href="https://north24parganas.dcourts.gov.in/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="capsule-btn-dark text-xs justify-center w-full"
+                    >
+                      <span>Open Court Website</span>
+                      <div className="knob"><ExternalLink className="w-3 h-3 text-white" /></div>
+                    </a>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Quick Paste Order Text Form */}
               <form onSubmit={handleQuickPasteIngest} className="p-4 rounded-3xl bg-white border border-warm-borderSubtle shadow-xs space-y-3">

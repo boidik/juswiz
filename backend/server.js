@@ -1,3 +1,5 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -7,6 +9,12 @@ const {
   createCaptchaSession, 
   submitCnrWithCaptcha 
 } = require('./services/ecourtsService');
+const {
+  isCalcuttaHighCourtCase,
+  createCalcuttaHighCourtSession,
+  submitCalcuttaHighCourtWithCaptcha,
+  queryCalcuttaHighCourtAuto
+} = require('./services/calcuttaHighCourtService');
 const { uploadToDedicatedDriveFolder } = require('./services/driveService');
 const { initScheduler, updateSchedule, getSchedulerStatus, addLog } = require('./services/scheduler');
 
@@ -29,28 +37,46 @@ app.use('/storage/autofetched_orders', express.static(LOCAL_STORAGE_DIR));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ONLINE',
-    service: 'JusWiz eCourts Auto-Sync Microservice',
+    service: 'JusWiz Dual-Engine Court Order Microservice',
+    engines: ['Calcutta High Court (calcuttahighcourt.gov.in)', 'eCourts National Gateway (District Courts)'],
     port: PORT,
     timestamp: new Date().toISOString(),
     scheduler: getSchedulerStatus()
   });
 });
 
-// --- 2. Live Court Captcha Session Endpoint ---
+// --- 2. Live Court Captcha Session Endpoint (Dual Court Engine) ---
 app.get('/api/court/captcha-session', async (req, res) => {
   try {
-    const sessionData = await createCaptchaSession();
-    addLog(`[Live Session] Created fresh eCourts captcha session: ${sessionData.sessionId}`, 'SESSION');
-    res.json({
-      success: true,
-      sessionId: sessionData.sessionId,
-      captchaDataUrl: sessionData.captchaDataUrl
-    });
+    const { courtCode = '', courtName = '', cnrNumber = '', caseNumber = '' } = req.query;
+    const isCalHc = isCalcuttaHighCourtCase({ courtCode, courtName, cnrNumber, caseNumber });
+
+    if (isCalHc) {
+      const sessionData = await createCalcuttaHighCourtSession();
+      addLog(`[Live Session] Created fresh Calcutta High Court session: ${sessionData.sessionId}`, 'SESSION');
+      res.json({
+        success: true,
+        courtType: 'CALCUTTA_HIGH_COURT',
+        portalName: 'Calcutta High Court Official Portal (calcuttahighcourt.gov.in)',
+        sessionId: sessionData.sessionId,
+        captchaDataUrl: sessionData.captchaDataUrl
+      });
+    } else {
+      const sessionData = await createCaptchaSession();
+      addLog(`[Live Session] Created fresh eCourts District Court session: ${sessionData.sessionId}`, 'SESSION');
+      res.json({
+        success: true,
+        courtType: 'ECOURTS_LOWER_COURTS',
+        portalName: 'eCourts National Gateway (District Courts)',
+        sessionId: sessionData.sessionId,
+        captchaDataUrl: sessionData.captchaDataUrl
+      });
+    }
   } catch (err) {
-    addLog(`[Live Session] Error creating captcha session: ${err.message}`, 'ERROR');
+    addLog(`[Live Session] Error creating court captcha session: ${err.message}`, 'ERROR');
     res.status(500).json({
       success: false,
-      error: `Could not connect to eCourts for fresh session: ${err.message}`
+      error: `Could not connect to court gateway for fresh session: ${err.message}`
     });
   }
 });
@@ -115,6 +141,7 @@ async function archiveOrders({ orders, caseNumber, driveFolderId, googleAccessTo
       fileName,
       orderNumber: cleanOrderNum,
       orderDate: ord.orderDate,
+      coram: ord.coram,
       orderSummary: cleanSummary,
       hasPdf: !!pdfBuffer,
       fileSize: pdfBuffer ? pdfBuffer.length : ord.fileSize,
@@ -128,7 +155,7 @@ async function archiveOrders({ orders, caseNumber, driveFolderId, googleAccessTo
   return archivedOrders;
 }
 
-// --- 3. Fetch Orders With Human-Verified Captcha ---
+// --- 3. Fetch Orders With Human-Verified Captcha (Dual Engine) ---
 app.post('/api/court/fetch-with-captcha', async (req, res) => {
   const {
     sessionId,
@@ -136,48 +163,74 @@ app.post('/api/court/fetch-with-captcha', async (req, res) => {
     captchaCode,
     caseId,
     caseNumber,
+    caseType,
+    courtCode,
+    courtName,
+    courtType,
     driveFolderId,
     googleAccessToken,
     dedicatedFolderName = '05_AutoFetched_Court_Orders'
   } = req.body;
 
-  if (!sessionId || !cnrNumber || !captchaCode) {
+  if (!sessionId || !captchaCode) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required parameters: sessionId, cnrNumber, or captchaCode.'
+      error: 'Missing required parameters: sessionId or captchaCode.'
     });
   }
 
-  addLog(`[Human-Verified Query] Submitting CNR: ${cnrNumber} with captcha code "${captchaCode}"...`, 'REQUEST');
+  const isCalHc = courtType === 'CALCUTTA_HIGH_COURT' || 
+    isCalcuttaHighCourtCase({ courtCode, courtName, cnrNumber, caseNumber });
+
+  addLog(`[Human-Verified Query] Submitting ${isCalHc ? 'Calcutta High Court' : 'eCourts'} query for: ${caseNumber || cnrNumber} with captcha "${captchaCode}"...`, 'REQUEST');
 
   try {
-    const result = await submitCnrWithCaptcha(sessionId, cnrNumber, captchaCode);
+    let result;
+    if (isCalHc) {
+      result = await submitCalcuttaHighCourtWithCaptcha(sessionId, {
+        caseNumber,
+        caseType,
+        cnrNumber,
+        courtCode,
+        courtName,
+        captchaCode
+      });
+    } else {
+      if (!cnrNumber) {
+        return res.status(400).json({ success: false, error: 'Missing 16-character CNR Number for lower court query.' });
+      }
+      result = await submitCnrWithCaptcha(sessionId, cnrNumber, captchaCode);
+    }
 
     if (!result.success) {
-      addLog(`[Human-Verified Query] eCourts error: ${result.error}`, 'ERROR');
+      addLog(`[Human-Verified Query] Court portal error: ${result.error}`, 'ERROR');
       return res.json(result);
     }
 
     if (!result.found) {
-      addLog(`[Human-Verified Query] CNR ${cnrNumber} valid, but pending upload by registry.`, 'INFO');
+      addLog(`[Human-Verified Query] Case valid, but pending listing/orders by registry.`, 'INFO');
       return res.json(result);
     }
 
     // Archive discovered orders
     const archivedOrders = await archiveOrders({
       orders: result.orders || [],
-      caseNumber,
+      caseNumber: caseNumber || result.caseNumber || 'CASE',
       driveFolderId,
       googleAccessToken,
       dedicatedFolderName
     });
 
-    addLog(`[Human-Verified Query] Successfully archived ${archivedOrders.length} genuine court orders for ${cnrNumber}.`, 'SUCCESS');
+    addLog(`[Human-Verified Query] Successfully archived ${archivedOrders.length} genuine court orders for ${caseNumber || cnrNumber}.`, 'SUCCESS');
 
     return res.json({
       success: true,
       found: true,
-      cnrNumber: result.cnrNumber,
+      courtType: isCalHc ? 'CALCUTTA_HIGH_COURT' : 'ECOURTS_LOWER_COURTS',
+      cino: result.cino,
+      cnrNumber: result.cnrNumber || result.cino || cnrNumber,
+      caseNumber: result.caseNumber || caseNumber,
+      causeTitle: result.causeTitle,
       message: result.message,
       dedicatedFolderName,
       archivedOrders,
@@ -194,53 +247,73 @@ app.post('/api/court/fetch-with-captcha', async (req, res) => {
   }
 });
 
-// --- 4. On-Demand Single Case Sync (Automated OCR) ---
+// --- 4. On-Demand Single Case Sync (Autonomous Deep-Learning OCR) ---
 app.post('/api/sync/case', async (req, res) => {
   const { 
     caseId, 
     cnrNumber, 
     caseNumber, 
+    caseType,
+    courtCode,
     courtName, 
     driveFolderId, 
     googleAccessToken,
     dedicatedFolderName = '05_AutoFetched_Court_Orders'
   } = req.body;
 
-  if (!cnrNumber) {
-    return res.status(400).json({ success: false, error: 'Missing 16-digit CNR Number.' });
+  const isCalHc = isCalcuttaHighCourtCase({ courtCode, courtName, cnrNumber, caseNumber });
+
+  if (!isCalHc && !cnrNumber) {
+    return res.status(400).json({ success: false, error: 'Missing 16-digit CNR Number for lower court case.' });
   }
 
-  addLog(`[On-Demand Sync] Received sync request for Case: ${caseNumber || caseId} (CNR: ${cnrNumber})`, 'REQUEST');
+  addLog(`[On-Demand Sync] Received sync request for Case: ${caseNumber || caseId} (${isCalHc ? 'Calcutta High Court' : 'Lower Court CNR: ' + cnrNumber})`, 'REQUEST');
 
   try {
-    const ecourtsResult = await queryEcourtsByCnr(cnrNumber, caseNumber);
+    let courtResult;
+    if (isCalHc) {
+      courtResult = await queryCalcuttaHighCourtAuto({
+        caseNumber,
+        caseType,
+        cnrNumber,
+        courtCode,
+        courtName
+      });
+    } else {
+      courtResult = await queryEcourtsByCnr(cnrNumber, caseNumber);
+    }
 
-    if (!ecourtsResult.success) {
-      addLog(`[On-Demand Sync] Automated OCR blocked: ${ecourtsResult.error}`, 'WARN');
+    if (!courtResult.success) {
+      addLog(`[On-Demand Sync] Automated OCR blocked/failed: ${courtResult.error}`, 'WARN');
       return res.json({
         success: false,
         requiresHumanCaptcha: true,
-        error: ecourtsResult.error,
-        message: ecourtsResult.error
+        courtType: isCalHc ? 'CALCUTTA_HIGH_COURT' : 'ECOURTS_LOWER_COURTS',
+        error: courtResult.error,
+        message: courtResult.error
       });
     }
 
     const archivedOrders = await archiveOrders({
-      orders: ecourtsResult.orders || [],
-      caseNumber,
+      orders: courtResult.orders || [],
+      caseNumber: caseNumber || courtResult.caseNumber || 'CASE',
       driveFolderId,
       googleAccessToken,
       dedicatedFolderName
     });
 
-    addLog(`[On-Demand Sync] Completed sync for CNR ${cnrNumber}. Orders found: ${archivedOrders.length}`, 'SUCCESS');
+    addLog(`[On-Demand Sync] Completed sync for ${caseNumber || cnrNumber}. Orders found: ${archivedOrders.length}`, 'SUCCESS');
 
     return res.json({
       success: true,
       caseId,
-      cnrNumber,
-      found: ecourtsResult.found || false,
-      message: ecourtsResult.message,
+      courtType: isCalHc ? 'CALCUTTA_HIGH_COURT' : 'ECOURTS_LOWER_COURTS',
+      cino: courtResult.cino,
+      cnrNumber: courtResult.cnrNumber || courtResult.cino || cnrNumber,
+      caseNumber: courtResult.caseNumber || caseNumber,
+      causeTitle: courtResult.causeTitle,
+      found: courtResult.found || false,
+      message: courtResult.message,
       dedicatedFolderName,
       archivedOrders,
       ordersCount: archivedOrders.length,
@@ -256,20 +329,45 @@ app.post('/api/sync/case', async (req, res) => {
   }
 });
 
-// --- 5. Batch Automated Sync Trigger ---
+// --- 5. Batch Automated Sync Trigger (Dual Court Engine) ---
 app.post('/api/sync/batch', async (req, res) => {
   const { cases = [], googleAccessToken } = req.body;
   addLog(`[Batch Sync] Starting batch sync for ${cases.length} cases...`, 'BATCH');
 
   const results = [];
   for (const c of cases) {
-    if (c.cnrNumber) {
-      try {
-        const r = await queryEcourtsByCnr(c.cnrNumber);
-        results.push({ caseNumber: c.caseNumber, cnr: c.cnrNumber, found: r.found || false, error: r.error });
-      } catch (e) {
-        results.push({ caseNumber: c.caseNumber, cnr: c.cnrNumber, error: e.message });
+    try {
+      const isCalHc = isCalcuttaHighCourtCase({
+        courtCode: c.courtCode,
+        courtName: c.courtName,
+        cnrNumber: c.cnrNumber,
+        caseNumber: c.caseNumber
+      });
+
+      let r;
+      if (isCalHc) {
+        r = await queryCalcuttaHighCourtAuto({
+          caseNumber: c.caseNumber,
+          caseType: c.caseType,
+          cnrNumber: c.cnrNumber,
+          courtCode: c.courtCode,
+          courtName: c.courtName
+        });
+      } else if (c.cnrNumber) {
+        r = await queryEcourtsByCnr(c.cnrNumber, c.caseNumber);
+      } else {
+        continue;
       }
+
+      results.push({
+        caseNumber: c.caseNumber,
+        courtType: isCalHc ? 'CALCUTTA_HIGH_COURT' : 'ECOURTS_LOWER_COURTS',
+        found: r.found || false,
+        ordersCount: r.orders?.length || 0,
+        error: r.error
+      });
+    } catch (e) {
+      results.push({ caseNumber: c.caseNumber, error: e.message });
     }
   }
 
@@ -294,15 +392,16 @@ app.post('/api/sync/config', (req, res) => {
 
 // --- Initialize Background Cron Scheduler ---
 initScheduler(async (logger) => {
-  logger('Executing nightly automated court synchronization across litigation portfolio...', 'AUTO_SYNC');
+  logger('Executing nightly automated court synchronization across litigation portfolio (High Court & Lower Courts)...', 'AUTO_SYNC');
 });
 
 // Start Server
 app.listen(PORT, () => {
   console.log(`=======================================================`);
   console.log(`⚡ JusWiz Court Order Microservice running on port ${PORT}`);
+  console.log(`🏛️ Dual Engines: Calcutta High Court + eCourts Lower Courts`);
   console.log(`📁 Dedicated Auto-Fetched PDF Storage: ${LOCAL_STORAGE_DIR}`);
   console.log(`⏰ Automated Daily Court Sync: 8:00 PM (0 20 * * *)`);
   console.log(`=======================================================`);
-  addLog(`Microservice daemon online on port ${PORT}. Ready for on-demand & scheduled sync.`);
+  addLog(`Dual-engine microservice daemon online on port ${PORT}. Ready for Calcutta High Court & eCourts sync.`);
 });
