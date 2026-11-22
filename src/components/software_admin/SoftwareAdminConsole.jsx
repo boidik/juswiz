@@ -99,10 +99,10 @@ export const SoftwareAdminConsole = () => {
       </div>
 
       {/* Sub-tab Navigation */}
-      <div className="flex border-b border-warm-borderSubtle space-x-2">
+      <div className="flex border-b border-warm-borderSubtle space-x-2 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveSubTab('CASES')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+          className={`shrink-0 flex items-center gap-2 px-3.5 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeSubTab === 'CASES'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'
@@ -113,7 +113,7 @@ export const SoftwareAdminConsole = () => {
 
         <button
           onClick={() => setActiveSubTab('CUSTOMIZER')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+          className={`shrink-0 flex items-center gap-2 px-3.5 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeSubTab === 'CUSTOMIZER'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'
@@ -124,7 +124,7 @@ export const SoftwareAdminConsole = () => {
 
         <button
           onClick={() => setActiveSubTab('APPROVALS')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+          className={`shrink-0 flex items-center gap-2 px-3.5 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeSubTab === 'APPROVALS'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'
@@ -195,7 +195,7 @@ export const SoftwareAdminConsole = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
                     <button
                       onClick={() => {
                         setCaseToEdit(c);

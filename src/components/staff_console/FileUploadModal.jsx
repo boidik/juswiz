@@ -75,13 +75,13 @@ export const FileUploadModal = ({ isOpen, onClose, targetCaseId }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/40 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-      <div className="relative w-full max-w-lg glass-panel-elevated rounded-4xl border border-white/95 shadow-[0_25px_60px_-15px_rgba(160,140,120,0.35)] overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/40 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fade-in">
+      <div className="relative w-full max-w-lg glass-panel-elevated rounded-3xl sm:rounded-4xl border border-white/95 shadow-[0_25px_60px_-15px_rgba(160,140,120,0.35)] overflow-hidden my-2 sm:my-8 max-h-[94vh] sm:max-h-[92vh] flex flex-col">
         
         {/* Header */}
-        <div className="px-7 pt-6 pb-4 border-b border-warm-borderSubtle/60 flex items-center justify-between">
+        <div className="px-4 sm:px-7 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-warm-borderSubtle/60 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-warm-obsidian font-display tracking-tight">
+            <h2 className="text-base sm:text-xl font-bold text-warm-obsidian font-display tracking-tight">
               Upload Litigation Document
             </h2>
             <p className="text-xs text-warm-muted mt-0.5">
@@ -90,14 +90,14 @@ export const FileUploadModal = ({ isOpen, onClose, targetCaseId }) => {
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-warm-sand/50 hover:bg-warm-sand flex items-center justify-center text-warm-graphite transition-colors"
+            className="w-8 h-8 rounded-full bg-warm-sand/50 hover:bg-warm-sand flex items-center justify-center text-warm-graphite transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-7 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-7 space-y-4 overflow-y-auto flex-1">
           
           {/* File Dropzone (Warm minimalist aesthetic) */}
           <div className="border-2 border-dashed border-warm-borderSubtle hover:border-terracotta rounded-3xl p-6 text-center bg-white/50 hover:bg-white/80 transition-all cursor-pointer">

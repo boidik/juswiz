@@ -332,25 +332,26 @@ export const CaseRegistrationModal = ({ isOpen, onClose, caseToEdit = null }) =>
               </div>
 
               {/* Google Drive Folder Link & Coordination */}
-              <div className="p-4 rounded-3xl bg-warm-sand/50 border border-warm-borderSubtle space-y-2">
-                <div className="flex items-center justify-between">
+              <div className="p-4 rounded-3xl bg-warm-sand/50 border border-warm-borderSubtle space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <FolderTree className="w-4 h-4 text-terracotta" />
+                    <FolderTree className="w-4 h-4 text-terracotta shrink-0" />
                     <span className="text-xs font-bold text-warm-obsidian font-display">
-                      Google Drive Dossier Coordination
+                      Google Drive Dossier & Mother Folder Nesting
                     </span>
                   </div>
                   {isGoogleConnected ? (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-pill border border-emerald-200">
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-pill border border-emerald-200 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       Google Workspace Active
                     </span>
                   ) : (
                     <button
                       type="button"
                       onClick={connectGoogleWorkspace}
-                      className="text-[10px] font-bold text-terracotta hover:underline"
+                      className="text-[10px] font-bold text-terracotta bg-terracotta-soft hover:bg-terracotta/20 px-2.5 py-0.5 rounded-pill border border-terracotta/30 flex items-center gap-1 transition-all"
                     >
-                      Connect Google Workspace
+                      <Sparkles className="w-3 h-3" /> Connect Google Workspace
                     </button>
                   )}
                 </div>
@@ -359,21 +360,35 @@ export const CaseRegistrationModal = ({ isOpen, onClose, caseToEdit = null }) =>
                   type="text"
                   value={driveFolderUrl}
                   onChange={(e) => setDriveFolderUrl(e.target.value)}
-                  placeholder="https://drive.google.com/drive/folders/1w7uR4K8yP... or folder ID (Leave blank to nest in Master Folder)"
+                  placeholder="Optional: Specific Drive Folder Link / ID (Leave blank to nest in Mother Folder)"
                   className="w-full capsule-input text-xs font-mono"
                 />
-                {driveFolderUrl && (
-                  <p className="text-[11px] text-warm-muted font-mono">
-                    {extractDriveFolderId(driveFolderUrl) 
-                      ? `✓ Valid Google Drive Folder ID: ${extractDriveFolderId(driveFolderUrl)}` 
-                      : 'ℹ Paste a link with an authentic Google Drive folder ID'}
-                  </p>
-                )}
-                <p className="text-[11px] text-warm-muted">
-                  {systemConfig.firmBranding?.masterDriveFolderId 
-                    ? `✓ Nested under Master Folder: ${systemConfig.firmBranding.masterDriveFolderId}` 
-                    : 'Created in connected Google Drive. Standard subdirectories (01_Client_Documents, 05_Orders, etc.) are provisioned automatically.'}
-                </p>
+
+                <div className="space-y-1 text-[11px]">
+                  {driveFolderUrl && extractDriveFolderId(driveFolderUrl) ? (
+                    <p className="text-emerald-700 font-mono font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      Specific Folder ID Provided: {extractDriveFolderId(driveFolderUrl)}
+                    </p>
+                  ) : (
+                    <p className="text-warm-obsidian font-medium bg-white/70 p-2.5 rounded-2xl border border-warm-borderSubtle/60 leading-relaxed">
+                      📁 <strong>Mother Folder Nesting:</strong> No specific drive link provided. JurisFlow will automatically create a new case folder named <strong className="font-mono text-terracotta">[{caseNumber || 'CaseNo'}] {clientName || 'Client'} ({courtCode || 'Court'})</strong> directly <strong>INSIDE</strong> your Mother / Root Folder{systemConfig.firmBranding?.masterDriveFolderId ? ` (${systemConfig.firmBranding.masterDriveFolderId})` : ''}, along with all 7 standard subfolders!
+                    </p>
+                  )}
+                  {systemConfig.firmBranding?.masterDriveUrl && (
+                    <p className="text-warm-muted flex items-center gap-1">
+                      <span>Root Mother Folder:</span>
+                      <a 
+                        href={systemConfig.firmBranding.masterDriveUrl} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="text-terracotta hover:underline font-mono truncate max-w-xs"
+                      >
+                        {systemConfig.firmBranding.masterDriveFolderId || systemConfig.firmBranding.masterDriveUrl}
+                      </a>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Client & Opposite Party Details */}

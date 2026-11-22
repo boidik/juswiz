@@ -202,10 +202,10 @@ export const DocumentVault = ({
         </div>
 
         {/* Folder Pills Bar (from Google Drive template) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-warm-borderSubtle/60">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-warm-borderSubtle/60 no-scrollbar">
           <button
             onClick={() => setSelectedFolder('ALL')}
-            className={`px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-all ${
+            className={`shrink-0 px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-all ${
               selectedFolder === 'ALL'
                 ? 'bg-warm-obsidian text-white shadow-xs'
                 : 'bg-white/70 text-warm-graphite hover:bg-white'
@@ -217,7 +217,7 @@ export const DocumentVault = ({
           {orderDocs.length > 0 && (
             <button
               onClick={() => setSelectedFolder('05_Orders_and_Judgments')}
-              className={`px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              className={`shrink-0 px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
                 selectedFolder === '05_Orders_and_Judgments'
                   ? 'bg-terracotta text-white shadow-xs'
                   : 'bg-terracotta-soft text-terracotta hover:bg-terracotta/20 border border-terracotta/30'
@@ -241,7 +241,7 @@ export const DocumentVault = ({
               <button
                 key={f.id}
                 onClick={() => setSelectedFolder(f.name)}
-                className={`px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                className={`shrink-0 px-3.5 py-1.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
                   selectedFolder === f.name
                     ? 'bg-warm-obsidian text-white shadow-xs'
                     : isOrdersFolder && count > 0
@@ -368,13 +368,13 @@ export const DocumentVault = ({
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 shrink-0 pt-2 md:pt-0">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0 pt-2 md:pt-0">
                   
                   {/* Read Order Synopsis Button */}
                   {isCourtOrder && (
                     <button
                       onClick={() => setReadingOrder(doc)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-terracotta text-white hover:bg-terracotta/90 text-xs font-semibold transition-all shadow-xs"
+                      className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-pill bg-terracotta text-white hover:bg-terracotta/90 text-xs font-semibold transition-all shadow-xs"
                       title="Read full Bench Order Sheet & Directions"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -388,7 +388,7 @@ export const DocumentVault = ({
                       href={doc.coEditUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-terracotta-soft hover:bg-terracotta text-terracotta hover:text-white border border-terracotta/30 text-xs font-semibold transition-all shadow-xs"
+                      className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-pill bg-terracotta-soft hover:bg-terracotta text-terracotta hover:text-white border border-terracotta/30 text-xs font-semibold transition-all shadow-xs"
                       title="Open live Google Doc for team co-editing"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
@@ -401,7 +401,7 @@ export const DocumentVault = ({
                     href={getExactFileDriveUrl(doc)}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-3.5 py-1.5 rounded-pill border border-warm-borderSubtle hover:bg-white text-xs font-semibold text-warm-graphite flex items-center gap-1.5 transition-colors shadow-xs"
+                    className="px-2.5 sm:px-3.5 py-1.5 rounded-pill border border-warm-borderSubtle hover:bg-white text-xs font-semibold text-warm-graphite flex items-center gap-1.5 transition-colors shadow-xs"
                     title={`Open exact file in Google Drive: ${doc.name}`}
                   >
                     <ExternalLink className="w-3.5 h-3.5 text-terracotta" />
@@ -410,7 +410,7 @@ export const DocumentVault = ({
 
                   <button
                     onClick={() => copyDocLink(getExactFileDriveUrl(doc))}
-                    className="p-2 rounded-full border border-warm-borderSubtle hover:bg-white text-warm-muted hover:text-warm-obsidian transition-colors"
+                    className="p-1.5 sm:p-2 rounded-full border border-warm-borderSubtle hover:bg-white text-warm-muted hover:text-warm-obsidian transition-colors"
                     title="Copy Exact File Share Link"
                   >
                     <Share2 className="w-3.5 h-3.5" />

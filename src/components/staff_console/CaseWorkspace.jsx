@@ -37,6 +37,7 @@ import { extractDriveFolderId, isValidGoogleDriveId, getExactFileDriveUrl } from
 
 export const CaseWorkspace = () => {
   const { 
+    systemConfig,
     cases, 
     selectedCase, 
     setSelectedCaseId, 
@@ -93,6 +94,17 @@ export const CaseWorkspace = () => {
   };
 
   const { dayOfWeek, dayOfMonth } = formatEditorialDate(selectedCase.nextHearingDate);
+
+  const masterFolderId = systemConfig.firmBranding?.masterDriveFolderId || 
+    extractDriveFolderId(systemConfig.firmBranding?.masterDriveUrl);
+
+  const isMotherFolderOnly = Boolean(
+    masterFolderId && (
+      !selectedCase.driveFolderId || 
+      selectedCase.driveFolderId === masterFolderId ||
+      selectedCase.needsDriveProvisioning
+    )
+  );
 
   const handleOpenDriveModal = () => {
     setCustomDriveInput(selectedCase.driveFolderUrl || '');
@@ -166,40 +178,40 @@ export const CaseWorkspace = () => {
           </div>
 
           {/* Right Date Card (Pinterest "Thu 24th" Style) & Google Drive Link */}
-          <div className="relative z-10 flex items-center gap-3 self-start lg:self-auto shrink-0 flex-wrap sm:flex-nowrap">
-            <div className="glass-panel rounded-3xl p-4 sm:p-5 text-left border border-white/90 shadow-glass min-w-[140px]">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-warm-muted block mb-1">
+          <div className="relative z-10 flex items-center gap-2.5 sm:gap-3 self-start lg:self-auto shrink-0 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-between sm:justify-start">
+            <div className="glass-panel rounded-3xl p-3 sm:p-5 text-left border border-white/90 shadow-glass min-w-[110px] sm:min-w-[140px] flex-1 sm:flex-initial">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-warm-muted block mb-0.5 sm:mb-1">
                 Next Listing
               </span>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-black text-warm-obsidian font-display tracking-tight">
+                <span className="text-xl sm:text-2xl font-black text-warm-obsidian font-display tracking-tight">
                   {dayOfWeek}
                 </span>
-                <span className="text-xl font-light text-terracotta font-display">
+                <span className="text-lg sm:text-xl font-light text-terracotta font-display">
                   {dayOfMonth}
                 </span>
               </div>
-              <p className="text-[11px] font-mono text-warm-muted mt-1 truncate">
+              <p className="text-[11px] font-mono text-warm-muted mt-0.5 sm:mt-1 truncate max-w-[140px]">
                 {selectedCase.itemNumber}
               </p>
             </div>
 
             {/* Google Drive Folder Buttons */}
-            <div className="flex flex-col gap-2">
+            <div className="flex sm:flex-col gap-2 shrink-0">
               <a
                 href={selectedCase.driveFolderUrl || 'https://drive.google.com/drive/my-drive'}
                 target="_blank"
                 rel="noreferrer"
-                className={`w-12 h-12 rounded-3xl glass-panel border border-white/90 hover:bg-white flex items-center justify-center transition-colors shadow-glass shrink-0 ${
+                className={`w-11 h-11 sm:w-12 sm:h-12 rounded-3xl glass-panel border border-white/90 hover:bg-white flex items-center justify-center transition-colors shadow-glass shrink-0 ${
                   selectedCase.hasRealDriveFolder ? 'text-warm-obsidian' : 'text-warm-muted'
                 }`}
-                title={selectedCase.hasRealDriveFolder ? `Open Linked Drive Folder (${selectedCase.driveFolderId})` : "Open Google Drive (Click below to link Folder ID)"}
+                title={selectedCase.hasRealDriveFolder ? `Open Dedicated Drive Folder (${selectedCase.driveFolderId})` : "Open Google Drive (Click below to provision inside Mother Folder)"}
               >
                 <FolderOpen className={`w-5 h-5 ${selectedCase.hasRealDriveFolder ? 'text-terracotta' : 'text-warm-muted'}`} />
               </a>
               <button
                 onClick={handleOpenDriveModal}
-                className="w-12 h-10 rounded-2xl glass-panel border border-white/90 hover:bg-white flex items-center justify-center text-warm-graphite hover:text-warm-obsidian transition-colors shadow-glass shrink-0 text-[10px] font-bold"
+                className="w-11 h-10 sm:w-12 sm:h-10 rounded-2xl glass-panel border border-white/90 hover:bg-white flex items-center justify-center text-warm-graphite hover:text-warm-obsidian transition-colors shadow-glass shrink-0 text-[10px] font-bold"
                 title="Link or Provision Google Drive Folder ID"
               >
                 <Link2 className="w-4 h-4 text-terracotta" />
@@ -209,8 +221,39 @@ export const CaseWorkspace = () => {
 
         </div>
 
+        {/* Dedicated Mother Folder Provisioning Notice Banner */}
+        {isMotherFolderOnly && (
+          <div className="relative z-10 p-3.5 sm:p-4 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-warm-obsidian animate-fade-in">
+            <div className="flex items-start sm:items-center gap-2.5">
+              <FolderTree className="w-5 h-5 text-terracotta shrink-0 mt-0.5 sm:mt-0" />
+              <div>
+                <p className="font-bold text-warm-obsidian">
+                  Dedicated Case Folder Pending in Mother Drive
+                </p>
+                <p className="text-[11px] text-warm-graphite">
+                  This case is currently linked to the Mother Folder ({masterFolderId || 'Default Drive'}). Click to auto-generate a dedicated folder <strong className="font-mono text-terracotta">[{selectedCase.caseNumber}] {selectedCase.clientName}</strong> directly inside the Mother Folder with standard subdirectories.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isProvisioningDrive}
+              onClick={async () => {
+                setIsProvisioningDrive(true);
+                await provisionCaseInGoogleDrive(selectedCase.id);
+                setIsProvisioningDrive(false);
+              }}
+              className="px-4 py-2 rounded-pill bg-terracotta hover:bg-terracotta/90 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs shrink-0 self-start sm:self-auto disabled:opacity-50 transition-all"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{isProvisioningDrive ? 'Provisioning...' : '⚡ Create in Mother Folder'}</span>
+            </button>
+          </div>
+        )}
+
         {/* Action Buttons Toolbar (Capsule Pills) */}
-        <div className="relative z-10 flex items-center gap-2 flex-wrap pt-4 border-t border-warm-borderSubtle/60">
+        <div className="relative z-10 flex items-center gap-1.5 sm:gap-2 flex-wrap pt-3 sm:pt-4 border-t border-warm-borderSubtle/60">
           <button
             onClick={() => setIsUploadOpen(true)}
             className="capsule-btn-dark text-xs"
@@ -221,35 +264,35 @@ export const CaseWorkspace = () => {
 
           <button
             onClick={() => setIsGMeetOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
           >
             <Video className="w-3.5 h-3.5 text-terracotta" /> Schedule GMeet
           </button>
 
           <button
             onClick={() => setIsShareBriefOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
           >
             <Share2 className="w-3.5 h-3.5 text-terracotta" /> Share Brief via Gmail
           </button>
 
           <button
             onClick={() => setIsHearingDateOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
           >
             <Calendar className="w-3.5 h-3.5 text-amber-600" /> Log Hearing Date
           </button>
 
           <button
             onClick={() => setIsEditCaseOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-pill bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
           >
             <Edit3 className="w-3.5 h-3.5 text-terracotta" /> Edit Docket
           </button>
 
           <button
             onClick={() => setActiveTab('ORDERS')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-pill text-xs font-semibold transition-all shadow-xs ${
+            className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-pill text-xs font-semibold transition-all shadow-xs ${
               activeTab === 'ORDERS' 
                 ? 'bg-terracotta text-white shadow-amber-glow' 
                 : 'bg-white/90 hover:bg-white text-warm-obsidian border border-warm-borderSubtle'
@@ -260,7 +303,7 @@ export const CaseWorkspace = () => {
 
           <button
             onClick={() => setIsOrderFetcherOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-warm-sand/80 hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all ml-auto shadow-xs"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-pill bg-warm-sand/80 hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all sm:ml-auto shadow-xs"
           >
             <Cpu className="w-3.5 h-3.5 text-terracotta" /> Auto Fetch Order
           </button>
@@ -326,10 +369,10 @@ export const CaseWorkspace = () => {
       )}
 
       {/* Workspace Tabs */}
-      <div className="flex border-b border-warm-borderSubtle bg-white/30 backdrop-blur-md rounded-t-3xl overflow-x-auto no-scrollbar px-3 sm:px-6">
+      <div className="flex border-b border-warm-borderSubtle bg-white/30 backdrop-blur-md rounded-t-3xl overflow-x-auto no-scrollbar px-2 sm:px-6">
         <button
           onClick={() => setActiveTab('VAULT')}
-          className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
+          className={`shrink-0 flex items-center gap-2 px-3.5 sm:px-5 py-3 sm:py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'VAULT'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'
@@ -341,7 +384,7 @@ export const CaseWorkspace = () => {
 
         <button
           onClick={() => setActiveTab('TASKS')}
-          className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
+          className={`shrink-0 flex items-center gap-2 px-3.5 sm:px-5 py-3 sm:py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'TASKS'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'
@@ -353,7 +396,7 @@ export const CaseWorkspace = () => {
 
         <button
           onClick={() => setActiveTab('CONFERENCES')}
-          className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
+          className={`shrink-0 flex items-center gap-2 px-3.5 sm:px-5 py-3 sm:py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'CONFERENCES'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'
@@ -365,7 +408,7 @@ export const CaseWorkspace = () => {
 
         <button
           onClick={() => setActiveTab('ORDERS')}
-          className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
+          className={`shrink-0 flex items-center gap-2 px-3.5 sm:px-5 py-3 sm:py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
             activeTab === 'ORDERS'
               ? 'border-terracotta text-terracotta font-bold'
               : 'border-transparent text-warm-muted hover:text-warm-obsidian'

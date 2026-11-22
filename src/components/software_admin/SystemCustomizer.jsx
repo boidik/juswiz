@@ -412,7 +412,7 @@ export const SystemCustomizer = () => {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
+              className={`shrink-0 flex items-center gap-2 px-3 sm:px-4 py-3 sm:py-3.5 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
                 isActive
                   ? tab.isDanger ? 'border-rose-600 text-rose-600 font-bold' : 'border-terracotta text-terracotta font-bold'
                   : tab.isDanger ? 'border-transparent text-rose-600/70 hover:text-rose-600' : 'border-transparent text-warm-muted hover:text-warm-obsidian'

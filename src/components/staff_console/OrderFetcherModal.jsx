@@ -322,24 +322,24 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/45 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-fade-in font-sans">
-      <div className="relative w-full max-w-3xl glass-panel-elevated rounded-4xl border border-white/95 shadow-[0_30px_70px_-15px_rgba(160,140,120,0.4)] overflow-hidden my-4 sm:my-8 bg-warm-sand/95">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/45 backdrop-blur-md flex items-center justify-center p-2 sm:p-5 animate-fade-in font-sans">
+      <div className="relative w-full max-w-3xl glass-panel-elevated rounded-3xl sm:rounded-4xl border border-white/95 shadow-[0_30px_70px_-15px_rgba(160,140,120,0.4)] overflow-hidden my-2 sm:my-8 bg-warm-sand/95 flex flex-col max-h-[94vh] sm:max-h-[92vh]">
         
         {/* Subtle Decorative Amber Glow */}
         <div className="absolute top-0 right-0 w-48 h-48 rounded-full sun-gradient-circle opacity-50 blur-xs pointer-events-none -mr-12 -mt-12" />
 
         {/* Modal Header */}
-        <div className="relative z-10 px-6 sm:px-8 pt-6 pb-4 border-b border-warm-borderSubtle/60 flex items-start justify-between bg-white/70">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full sun-gradient-circle text-white flex items-center justify-center shadow-amber-glow shrink-0">
-              <Cpu className="w-5 h-5 text-white" />
+        <div className="relative z-10 px-4 sm:px-8 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-warm-borderSubtle/60 flex items-start justify-between bg-white/70 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full sun-gradient-circle text-white flex items-center justify-center shadow-amber-glow shrink-0">
+              <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <span className="text-[10px] uppercase font-bold tracking-widest text-terracotta bg-terracotta-soft px-2.5 py-0.5 rounded-pill border border-terracotta/20">
                   Judicial Database Sync
                 </span>
-                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-pill border flex items-center gap-1.5 ${
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-pill border flex items-center gap-1.5 ${
                   microserviceStatus === 'ONLINE' 
                     ? 'text-emerald-700 bg-emerald-100/90 border-emerald-200'
                     : 'text-amber-800 bg-amber-100/90 border-amber-200'
@@ -348,7 +348,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                   Microservice: {microserviceStatus} (Port 5001)
                 </span>
               </div>
-              <h2 className="text-base sm:text-lg font-bold text-warm-obsidian tracking-tight mt-1">
+              <h2 className="text-sm sm:text-lg font-bold text-warm-obsidian tracking-tight mt-0.5 sm:mt-1">
                 Court Database Automation & Ingestion
               </h2>
             </div>
@@ -356,28 +356,28 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-warm-sand/60 hover:bg-warm-sand flex items-center justify-center text-warm-graphite hover:text-warm-obsidian transition-colors shadow-xs"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-warm-sand/60 hover:bg-warm-sand flex items-center justify-center text-warm-graphite hover:text-warm-obsidian transition-colors shadow-xs shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Case Dossier Identifiers Strip */}
-        <div className="relative z-10 px-6 sm:px-8 py-3 bg-white/40 border-b border-warm-borderSubtle/60 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3 flex-wrap font-mono">
-            <span className="font-bold text-warm-obsidian bg-white px-3 py-1 rounded-pill border border-warm-borderSubtle">
+        <div className="relative z-10 px-4 sm:px-8 py-2.5 sm:py-3 bg-white/40 border-b border-warm-borderSubtle/60 flex flex-wrap items-center justify-between gap-2 sm:gap-3 text-xs shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap font-mono">
+            <span className="font-bold text-warm-obsidian bg-white px-2.5 sm:px-3 py-1 rounded-pill border border-warm-borderSubtle">
               {caseNumber}
             </span>
             <span className="text-warm-muted">CNR: <strong className="text-warm-obsidian">{cnrNumber}</strong></span>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono text-warm-graphite bg-white/70 px-2.5 py-1 rounded-pill border border-warm-borderSubtle flex items-center gap-1">
+            <span className="text-[10px] sm:text-[11px] font-mono text-warm-graphite bg-white/70 px-2.5 py-1 rounded-pill border border-warm-borderSubtle flex items-center gap-1">
               <FolderSync className="w-3 h-3 text-terracotta" /> /{dedicatedFolderName}/
             </span>
             <button
               onClick={handleCopyCnr}
-              className="px-3 py-1 rounded-pill bg-white hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+              className="px-2.5 sm:px-3 py-1 rounded-pill bg-white hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
               title="Copy 16-digit CNR for eCourts search"
             >
               <Copy className="w-3 h-3 text-terracotta" /> Copy CNR
@@ -386,10 +386,10 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
         </div>
 
         {/* Tab Controls */}
-        <div className="relative z-10 px-6 sm:px-8 pt-3 flex items-center gap-2 border-b border-warm-borderSubtle/60 bg-white/20">
+        <div className="relative z-10 px-4 sm:px-8 pt-2.5 sm:pt-3 flex items-center gap-1.5 sm:gap-2 border-b border-warm-borderSubtle/60 bg-white/20 overflow-x-auto no-scrollbar shrink-0">
           <button
             onClick={() => setActiveTab('MICROSERVICE')}
-            className={`px-4 py-2 rounded-t-2xl text-xs font-bold transition-all flex items-center gap-2 border-t border-l border-r ${
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-t-2xl text-xs font-bold transition-all flex items-center gap-2 border-t border-l border-r whitespace-nowrap ${
               activeTab === 'MICROSERVICE'
                 ? 'bg-white text-terracotta border-warm-borderSubtle shadow-xs'
                 : 'bg-transparent text-warm-graphite border-transparent hover:text-warm-obsidian'
@@ -401,7 +401,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
 
           <button
             onClick={() => setActiveTab('PORTAL')}
-            className={`px-4 py-2 rounded-t-2xl text-xs font-bold transition-all flex items-center gap-2 border-t border-l border-r ${
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-t-2xl text-xs font-bold transition-all flex items-center gap-2 border-t border-l border-r whitespace-nowrap ${
               activeTab === 'PORTAL'
                 ? 'bg-white text-terracotta border-warm-borderSubtle shadow-xs'
                 : 'bg-transparent text-warm-graphite border-transparent hover:text-warm-obsidian'
@@ -413,7 +413,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
 
           <button
             onClick={() => setActiveTab('INGEST')}
-            className={`px-4 py-2 rounded-t-2xl text-xs font-bold transition-all flex items-center gap-2 border-t border-l border-r ${
+            className={`shrink-0 px-3.5 sm:px-4 py-2 rounded-t-2xl text-xs font-bold transition-all flex items-center gap-2 border-t border-l border-r whitespace-nowrap ${
               activeTab === 'INGEST'
                 ? 'bg-white text-terracotta border-warm-borderSubtle shadow-xs'
                 : 'bg-transparent text-warm-graphite border-transparent hover:text-warm-obsidian'
@@ -425,7 +425,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
         </div>
 
         {/* Modal Body */}
-        <div className="relative z-10 p-6 sm:p-8 space-y-5 bg-white/60 max-h-[75vh] overflow-y-auto">
+        <div className="relative z-10 p-4 sm:p-8 space-y-5 bg-white/60 flex-1 overflow-y-auto">
           
           {/* TAB 1: COURT SYNC MICROSERVICE */}
           {activeTab === 'MICROSERVICE' && (

@@ -456,33 +456,54 @@ export const AppProvider = ({ children }) => {
 
       let effectiveDriveUrl = null;
       let driveFolderId = null;
+      let driveSubfolders = {};
+      let needsDriveProvisioning = false;
 
-      // 1. Check if user provided an explicit Drive URL or Folder ID
+      // 1. Resolve Master/Mother Folder ID from Admin Config
+      const masterFolderId = systemConfig.firmBranding?.masterDriveFolderId || 
+        extractDriveFolderId(systemConfig.firmBranding?.masterDriveUrl);
+
+      // 2. Check if user provided an explicit Drive URL or Folder ID that is NOT the master folder itself
       const userFolderId = extractDriveFolderId(caseData.driveFolderUrl);
-      if (userFolderId) {
+      const isSpecificFolderProvided = Boolean(userFolderId && userFolderId !== masterFolderId);
+
+      if (isSpecificFolderProvided) {
         driveFolderId = userFolderId;
         effectiveDriveUrl = `https://drive.google.com/drive/folders/${userFolderId}`;
-      } else if (isGoogleConnected) {
-        // 2. If Google Workspace connected, call Google Drive API to create the real folder nested inside Master Folder
-        const masterFolderId = systemConfig.firmBranding?.masterDriveFolderId || 
-          extractDriveFolderId(systemConfig.firmBranding?.masterDriveUrl);
-
-        const driveResult = await createCaseFolderInDrive({
-          caseNumber: caseData.caseNumber,
-          clientName: caseData.clientName,
-          courtCode: caseData.courtCode,
-          folderTemplate: systemConfig.driveFolderTemplate || [],
-          masterFolderId
-        });
-        if (driveResult.folderId) {
-          driveFolderId = driveResult.folderId;
-          effectiveDriveUrl = `https://drive.google.com/drive/folders/${driveResult.folderId}`;
+      } else {
+        // No specific drive link provided: create a NEW drive folder INSIDE the mother/root folder!
+        if (isGoogleConnected) {
+          try {
+            const driveResult = await createCaseFolderInDrive({
+              caseNumber: caseData.caseNumber,
+              clientName: caseData.clientName,
+              courtCode: caseData.courtCode,
+              folderTemplate: systemConfig.driveFolderTemplate || [],
+              masterFolderId
+            });
+            if (driveResult?.success && driveResult?.folderId) {
+              driveFolderId = driveResult.folderId;
+              effectiveDriveUrl = driveResult.folderUrl;
+              driveSubfolders = driveResult.subfolders || {};
+            } else {
+              needsDriveProvisioning = true;
+            }
+          } catch (e) {
+            console.warn('Auto-create Drive folder failed:', e);
+            needsDriveProvisioning = true;
+          }
+        } else {
+          needsDriveProvisioning = true;
         }
       }
 
-      // If not yet linked, use masterDriveUrl or my-drive
+      // If not yet linked (or pending provisioning), link to master folder or my-drive
       if (!effectiveDriveUrl) {
-        effectiveDriveUrl = systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive';
+        if (masterFolderId) {
+          effectiveDriveUrl = `https://drive.google.com/drive/folders/${masterFolderId}`;
+        } else {
+          effectiveDriveUrl = systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive';
+        }
       }
 
       const newCaseRecord = {
@@ -509,6 +530,10 @@ export const AppProvider = ({ children }) => {
         lastOrder: caseData.lastOrder || 'Case admitted and registered into system directory.',
         driveFolderUrl: effectiveDriveUrl,
         driveFolderId: driveFolderId,
+        driveSubfolders: driveSubfolders,
+        needsDriveProvisioning: needsDriveProvisioning,
+        hasRealDriveFolder: Boolean(driveFolderId && driveFolderId !== masterFolderId),
+        motherFolderId: masterFolderId || null,
         driveFolderPath: `/JurisFlow Litigations/${folderSlug}`,
         briefSummary: caseData.briefSummary || '',
         registeredDate: new Date().toISOString().split('T')[0],
@@ -539,19 +564,29 @@ export const AppProvider = ({ children }) => {
 
   const updateCaseDriveLink = async (caseId, input) => {
     try {
+      const masterFolderId = systemConfig.firmBranding?.masterDriveFolderId || 
+        extractDriveFolderId(systemConfig.firmBranding?.masterDriveUrl);
       const folderId = extractDriveFolderId(input);
+      const isSpecific = Boolean(folderId && folderId !== masterFolderId);
+
       let newDriveUrl;
       if (folderId) {
         newDriveUrl = `https://drive.google.com/drive/folders/${folderId}`;
       } else {
-        newDriveUrl = systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive';
+        newDriveUrl = masterFolderId 
+          ? `https://drive.google.com/drive/folders/${masterFolderId}`
+          : (systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive');
       }
       await updateDoc(doc(db, 'cases', caseId), { 
         driveFolderUrl: newDriveUrl,
-        driveFolderId: folderId || null
+        driveFolderId: folderId || null,
+        hasRealDriveFolder: isSpecific,
+        needsDriveProvisioning: !isSpecific
       });
-      if (folderId) {
+      if (isSpecific) {
         showToast(`Linked authentic Google Drive Folder (ID: ${folderId})!`);
+      } else if (folderId === masterFolderId) {
+        showToast('Set to Mother Folder. You can auto-provision a dedicated case folder inside it.');
       } else {
         showToast('Updated Google Drive link.');
       }
@@ -571,7 +606,7 @@ export const AppProvider = ({ children }) => {
         if (!connectRes?.success) return { success: false, message: 'Google authorization required' };
       }
 
-      showToast('Creating case folder & subdirectories in Google Drive...');
+      showToast('Creating case folder inside Mother Folder in Google Drive...');
       const masterFolderId = systemConfig.firmBranding?.masterDriveFolderId || 
         extractDriveFolderId(systemConfig.firmBranding?.masterDriveUrl);
 
@@ -586,9 +621,13 @@ export const AppProvider = ({ children }) => {
       if (result.success && result.folderId) {
         await updateDoc(doc(db, 'cases', caseId), {
           driveFolderUrl: result.folderUrl,
-          driveFolderId: result.folderId
+          driveFolderId: result.folderId,
+          driveSubfolders: result.subfolders || {},
+          needsDriveProvisioning: false,
+          hasRealDriveFolder: true,
+          motherFolderId: masterFolderId || null
         });
-        showToast(`Google Drive folder created! ID: ${result.folderId}`);
+        showToast(`Google Drive folder created inside Mother Folder! (ID: ${result.folderId})`);
         return { success: true, folderId: result.folderId, folderUrl: result.folderUrl };
       } else {
         showToast(result.message || 'Could not create Drive folder.', 'error');
@@ -725,7 +764,8 @@ export const AppProvider = ({ children }) => {
         const uploadResult = await uploadFileToDrive({
           file: originalFile,
           parentFolderId: targetCase?.driveFolderId,
-          fileName: autoRenamedName
+          fileName: autoRenamedName,
+          subfolderName: folder || '01_Client_Documents'
         });
         if (uploadResult?.fileId) {
           driveFileId = uploadResult.fileId;

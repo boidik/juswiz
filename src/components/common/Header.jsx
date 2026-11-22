@@ -37,37 +37,37 @@ export const Header = () => {
   const canAccessManager = actualRole === 'SOFTWARE_ADMIN' || actualRole === 'MANAGER_ADMIN';
 
   return (
-    <header className="sticky top-0 z-40 px-3 sm:px-6 pt-3 pb-2 transition-all">
-      <div className="max-w-7xl mx-auto glass-panel-elevated rounded-3xl sm:rounded-pill px-4 sm:px-6 py-2.5 sm:py-3 border border-white/80 shadow-[0_10px_35px_-5px_rgba(180,160,140,0.12)]">
-        <div className="flex items-center justify-between gap-3">
+    <header className="sticky top-0 z-40 px-2 sm:px-6 pt-2 sm:pt-3 pb-2 transition-all">
+      <div className="max-w-7xl mx-auto glass-panel-elevated rounded-2xl sm:rounded-pill px-3 sm:px-6 py-2 sm:py-3 border border-white/80 shadow-[0_10px_35px_-5px_rgba(180,160,140,0.12)]">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
           
           {/* Brand Logo & Name */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="w-10 h-10 rounded-full sun-gradient-circle flex items-center justify-center p-2 text-white shadow-amber-glow">
-              <Briefcase className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full sun-gradient-circle flex items-center justify-center p-1.5 sm:p-2 text-white shadow-amber-glow shrink-0">
+              <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-warm-obsidian font-display">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="text-xs sm:text-base font-extrabold tracking-tight text-warm-obsidian font-display truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none">
                   {systemConfig.firmBranding?.firmName || 'JurisFlow'}
                 </h1>
                 <span className="hidden md:inline-flex text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-terracotta-soft text-terracotta border border-terracotta/20">
                   Legal Studio
                 </span>
               </div>
-              <p className="text-[11px] text-warm-muted font-medium truncate max-w-[200px] sm:max-w-xs">
+              <p className="hidden sm:block text-[11px] text-warm-muted font-medium truncate max-w-[200px] sm:max-w-xs">
                 {systemConfig.firmBranding?.tagline || 'High Court & Supreme Court'}
               </p>
             </div>
           </div>
 
-          {/* Center Capsule Navigation: 3 Consoles */}
+          {/* Center Capsule Navigation: 3 Consoles (Responsive: Icon-first on mobile, full labels on sm+) */}
           {currentUser && (
-            <nav className="flex items-center p-1 bg-warm-sand/50 backdrop-blur-md rounded-pill border border-warm-borderSubtle">
+            <nav className="flex items-center p-0.5 sm:p-1 bg-warm-sand/50 backdrop-blur-md rounded-pill border border-warm-borderSubtle shrink-0">
               {canAccessAdmin && (
                 <button
                   onClick={() => switchRole('SOFTWARE_ADMIN')}
-                  className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-pill text-xs font-semibold transition-all ${
+                  className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-pill text-[11px] sm:text-xs font-semibold transition-all ${
                     currentRole === 'SOFTWARE_ADMIN'
                       ? 'bg-warm-obsidian text-white shadow-md'
                       : 'text-warm-graphite hover:text-warm-obsidian hover:bg-white/60'
@@ -75,14 +75,14 @@ export const Header = () => {
                   title="Software Admin Console"
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Admin</span>
+                  <span className="hidden sm:inline">Admin</span>
                 </button>
               )}
 
               {canAccessManager && (
                 <button
                   onClick={() => switchRole('MANAGER_ADMIN')}
-                  className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-pill text-xs font-semibold transition-all ${
+                  className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-pill text-[11px] sm:text-xs font-semibold transition-all ${
                     currentRole === 'MANAGER_ADMIN'
                       ? 'bg-warm-obsidian text-white shadow-md'
                       : 'text-warm-graphite hover:text-warm-obsidian hover:bg-white/60'
@@ -90,13 +90,13 @@ export const Header = () => {
                   title="Manager Admin Console"
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
-                  <span>Manager</span>
+                  <span className="hidden sm:inline">Manager</span>
                 </button>
               )}
 
               <button
                 onClick={() => switchRole('STAFF')}
-                className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-pill text-xs font-semibold transition-all ${
+                className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-pill text-[11px] sm:text-xs font-semibold transition-all ${
                   currentRole === 'STAFF'
                     ? 'bg-warm-obsidian text-white shadow-md'
                     : 'text-warm-graphite hover:text-warm-obsidian hover:bg-white/60'
@@ -104,13 +104,13 @@ export const Header = () => {
                 title="Staff Console"
               >
                 <Briefcase className="w-3.5 h-3.5" />
-                <span>Staff</span>
+                <span className="hidden sm:inline">Staff</span>
               </button>
             </nav>
           )}
 
           {/* Right Action Bar */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Google Workspace Connection Pill */}
             {currentUser && (
               <button
@@ -133,7 +133,7 @@ export const Header = () => {
                 href={systemConfig.firmBranding?.masterDriveUrl || 'https://drive.google.com/drive/my-drive'}
                 target="_blank"
                 rel="noreferrer"
-                className="p-2 rounded-full hover:bg-white text-warm-graphite hover:text-warm-obsidian transition-colors border border-transparent hover:border-warm-borderSubtle hidden sm:flex items-center"
+                className="p-1.5 sm:p-2 rounded-full hover:bg-white text-warm-graphite hover:text-warm-obsidian transition-colors border border-transparent hover:border-warm-borderSubtle hidden sm:flex items-center"
                 title="Chambers Master Google Drive"
               >
                 <FolderTree className="w-4 h-4 text-terracotta" />
@@ -144,7 +144,7 @@ export const Header = () => {
             {currentUser && (
               <button
                 onClick={() => setIsNotificationOpen(true)}
-                className="relative p-2 rounded-full hover:bg-white text-warm-graphite hover:text-warm-obsidian transition-colors border border-transparent hover:border-warm-borderSubtle"
+                className="relative p-1.5 sm:p-2 rounded-full hover:bg-white text-warm-graphite hover:text-warm-obsidian transition-colors border border-transparent hover:border-warm-borderSubtle"
                 title="Notifications"
               >
                 <Bell className="w-4 h-4" />
@@ -159,9 +159,9 @@ export const Header = () => {
               <div className="relative">
                 <button
                   onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                  className="flex items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-pill bg-white/90 hover:bg-white border border-warm-borderSubtle transition-all shadow-xs"
+                  className="flex items-center gap-1.5 sm:gap-2 p-1 sm:pl-1.5 sm:pr-2.5 rounded-pill bg-white/90 hover:bg-white border border-warm-borderSubtle transition-all shadow-xs"
                 >
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-terracotta to-terracotta-light text-white font-bold text-xs flex items-center justify-center">
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-tr from-terracotta to-terracotta-light text-white font-bold text-xs flex items-center justify-center">
                     {(currentUser.name || currentUser.email || 'U').charAt(0).toUpperCase()}
                   </div>
                   <div className="hidden md:block text-left text-xs">

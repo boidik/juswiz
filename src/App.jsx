@@ -43,7 +43,7 @@ function AppContent() {
       <Header />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         
         {!currentUser ? (
           // Unauthenticated Luxury Gateway (Pinterest sample aesthetic)
@@ -100,15 +100,15 @@ function AppContent() {
 
       {/* Floating Bottom Console Switcher for Authorized Admins */}
       {currentUser && (currentUser.role === 'SOFTWARE_ADMIN' || currentUser.role === 'MANAGER_ADMIN') && (
-        <aside aria-label="Console switcher" className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 bg-[#141416]/95 backdrop-blur-xl text-white px-3 sm:px-4 py-2 rounded-pill shadow-obsidian border border-white/10 flex items-center gap-2 sm:gap-3 text-xs">
-          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-white/50 uppercase tracking-widest pr-1">
+        <aside aria-label="Console switcher" className="fixed bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-30 bg-[#141416]/95 backdrop-blur-xl text-white px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-pill shadow-obsidian border border-white/10 flex items-center gap-1.5 sm:gap-3 text-xs max-w-[96vw] overflow-x-auto no-scrollbar">
+          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-white/50 uppercase tracking-widest pr-1 shrink-0">
             <Sparkles className="w-3 h-3 text-terracotta-light" /> Switch Console:
           </span>
 
           {currentUser.role === 'SOFTWARE_ADMIN' && (
             <button
               onClick={() => switchRole('SOFTWARE_ADMIN')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
+              className={`shrink-0 flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-pill text-xs font-semibold transition-all whitespace-nowrap ${
                 currentRole === 'SOFTWARE_ADMIN'
                   ? 'bg-terracotta text-white shadow-amber-glow'
                   : 'text-white/60 hover:text-white hover:bg-white/10'
@@ -120,7 +120,7 @@ function AppContent() {
 
           <button
             onClick={() => switchRole('MANAGER_ADMIN')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
+            className={`shrink-0 flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-pill text-xs font-semibold transition-all whitespace-nowrap ${
               currentRole === 'MANAGER_ADMIN'
                 ? 'bg-terracotta text-white shadow-amber-glow'
                 : 'text-white/60 hover:text-white hover:bg-white/10'
@@ -131,7 +131,7 @@ function AppContent() {
 
           <button
             onClick={() => switchRole('STAFF')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-pill text-xs font-semibold transition-all ${
+            className={`shrink-0 flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-pill text-xs font-semibold transition-all whitespace-nowrap ${
               currentRole === 'STAFF'
                 ? 'bg-terracotta text-white shadow-amber-glow'
                 : 'text-white/60 hover:text-white hover:bg-white/10'

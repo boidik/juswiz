@@ -22,32 +22,32 @@ export const HearingDateModal = ({ isOpen, onClose, targetCase }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-      <div className="relative w-full max-w-lg bg-white rounded-m3-2xl shadow-m3-3 border border-neutral-200 overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-warm-obsidian/40 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fade-in font-sans">
+      <div className="relative w-full max-w-lg glass-panel-elevated rounded-3xl sm:rounded-4xl border border-white/95 shadow-glass overflow-hidden my-2 sm:my-8 max-h-[94vh] sm:max-h-[92vh] flex flex-col">
         
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-amber-50/80 to-yellow-50/40 border-b border-neutral-200 flex items-center justify-between">
+        <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-amber-50/80 to-yellow-50/40 border-b border-warm-borderSubtle/60 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-m3-lg bg-amber-600 text-white shadow-xs">
-              <Calendar className="w-5 h-5" />
+            <div className="p-2.5 rounded-2xl sun-gradient-circle text-white shadow-xs">
+              <Calendar className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-neutral-900">Log Hearing Date & Arm Reminders</h2>
-              <p className="text-xs text-neutral-500">
+              <h2 className="text-base sm:text-lg font-bold text-warm-obsidian">Log Hearing Date & Arm Reminders</h2>
+              <p className="text-xs text-warm-muted">
                 Staff Console • Triggers automated reminder intervals according to firm rules
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-neutral-200/60 text-neutral-500 transition-colors"
+            className="w-8 h-8 rounded-full bg-warm-sand/50 hover:bg-warm-sand flex items-center justify-center text-warm-graphite transition-colors shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
           <div>
             <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900">
               {targetCase?.caseNumber}

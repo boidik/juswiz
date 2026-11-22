@@ -222,7 +222,7 @@ export const createCaseFolderInDrive = async ({
     const folderUrl = `https://drive.google.com/drive/folders/${parentFolderId}`;
 
     // 2. Create standard subdirectories inside the parent folder
-    const subfolderNames = folderTemplate.length > 0 
+    let subfolderNames = folderTemplate.length > 0 
       ? folderTemplate.map(f => f.name)
       : [
           '01_Client_Documents',
@@ -230,8 +230,14 @@ export const createCaseFolderInDrive = async ({
           '03_Drafts_In_Progress',
           '04_Final_Court_Filings',
           '05_Orders_and_Judgments',
+          '05_AutoFetched_Court_Orders',
           '06_Conference_Briefs'
         ];
+
+    // Ensure dedicated auto-fetched orders folder is always provisioned
+    if (!subfolderNames.includes('05_AutoFetched_Court_Orders')) {
+      subfolderNames.push('05_AutoFetched_Court_Orders');
+    }
 
     const createdSubfolders = {};
 
