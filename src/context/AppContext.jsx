@@ -40,7 +40,6 @@ import {
   normalizeDriveFileUrl,
   getExactFileDriveUrl
 } from '../services/googleWorkspace';
-import { generateOfficialCourtOrderPdf } from '../services/judgmentPdfGenerator';
 
 const AppContext = createContext(null);
 
@@ -893,83 +892,68 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // --- Future-Proof Intelligent Court Order Fetcher Simulator ---
+  // --- Genuine Court Database Ingest & Judicial Order Sync ---
 
-  const simulateFetchCourtOrder = async (caseId, courtSource) => {
+  const ingestOfficialCourtOrder = async ({
+    caseId,
+    file,
+    orderDate,
+    courtName,
+    summary = '',
+    bench = '',
+    nextListingDate = ''
+  }) => {
     const targetCase = cases.find(c => c.id === caseId);
-    if (!targetCase) return { success: false };
+    if (!targetCase) return { success: false, message: 'Case not found' };
 
-    // Find court details from custom config
-    const courtMeta = (systemConfig.courts || []).find(c => c.name === courtSource || c.code === courtSource) || {
-      name: courtSource,
-      portalUrl: 'https://services.ecourts.gov.in',
-      queryEngine: 'ONLINE_PORTAL'
-    };
+    const effectiveDate = orderDate || new Date().toISOString().split('T')[0];
+    const cleanCourtName = (courtName || targetCase.courtName || 'Court').replace(/[^a-zA-Z0-9]/g, '_');
+    const cleanCaseNo = targetCase.caseNumber.replace(/[\/\s]/g, '_');
+    const orderTitle = `${effectiveDate}_ORDER_${cleanCourtName}_${cleanCaseNo}.pdf`;
 
-    const today = new Date().toISOString().split('T')[0];
-    const orderTitle = `${today}_ORDER_${courtMeta.name.replace(/[^a-zA-Z0-9]/g, '_')}_${targetCase.caseNumber.replace(/[\/\s]/g, '_')}.pdf`;
-    const scrapedSummary = `Bench heard the matter on board at ${courtMeta.name}. Interim protection extended till ${new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0]}. Next listing in regular motion list.`;
+    let driveFileId = null;
+    let driveUrl = `https://drive.google.com/drive/search?q=name:'${encodeURIComponent(orderTitle)}'`;
 
     try {
-      // 1. Generate authentic, complete court judgment PDF binary
-      let driveFileId = null;
-      let driveUrl = `https://drive.google.com/drive/search?q=name:'${encodeURIComponent(orderTitle)}'`;
-
-      try {
-        const generated = generateOfficialCourtOrderPdf({
-          order: {
-            courtName: courtMeta.name,
-            caseNumber: targetCase.caseNumber,
-            bench: targetCase.bench,
-            summary: scrapedSummary,
-            hearingDate: today,
-            name: orderTitle
-          },
-          caseData: targetCase
+      // Upload genuine court PDF to case folder in Google Drive
+      if (file instanceof Blob || file instanceof File) {
+        const uploadRes = await uploadFileToDrive({
+          file,
+          fileName: orderTitle,
+          parentFolderId: targetCase.driveFolderId
         });
 
-        // 2. If Google Drive token is present, upload PDF directly to case folder
-        if (generated?.blob) {
-          const uploadRes = await uploadFileToDrive({
-            file: generated.blob,
-            fileName: orderTitle,
-            parentFolderId: targetCase.driveFolderId
-          });
-
-          if (uploadRes?.fileId) {
-            driveFileId = uploadRes.fileId;
-            driveUrl = `https://drive.google.com/file/d/${uploadRes.fileId}/view`;
-          }
+        if (uploadRes?.fileId) {
+          driveFileId = uploadRes.fileId;
+          driveUrl = `https://drive.google.com/file/d/${uploadRes.fileId}/view`;
         }
-      } catch (pdfErr) {
-        console.warn('PDF generation/upload note:', pdfErr);
       }
 
       const orderDocRecord = {
         caseId: targetCase.id,
         name: orderTitle,
-        originalName: `Order_Sheet_AutoFetched_${targetCase.caseNumber}.pdf`,
+        originalName: file?.name || orderTitle,
         folder: '05_Orders_and_Judgments',
         category: 'Court Order',
         party: 'Court',
-        uploadedBy: `Intelligent Order Fetcher (${courtMeta.name})`,
-        uploadedByUid: 'SYSTEM_FETCHER',
+        uploadedBy: currentUser?.name || 'Chambers Counsel',
+        uploadedByUid: currentUser?.uid || '',
         uploadedAt: new Date().toISOString(),
-        fileSize: '1.4 MB',
+        fileSize: file?.size ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : '1.4 MB',
         fileType: 'application/pdf',
         driveUrl,
         driveFileId,
         hasRealFileLink: Boolean(driveFileId),
         coEditUrl: null,
-        tags: ['Auto-Fetched', courtMeta.name, 'Verified Bench Order'],
+        tags: ['Court Database Order', courtName || targetCase.courtName, 'Verified Bench Order'],
         isAutoIndexed: true,
         relevance: 100,
-        summary: scrapedSummary,
-        orderText: scrapedSummary,
-        courtName: courtMeta.name,
-        portalUrl: courtMeta.portalUrl || 'https://services.ecourts.gov.in',
-        hearingDate: today,
-        bench: targetCase.bench || 'Standard Bench',
+        summary: summary || '',
+        orderText: summary || '',
+        courtName: courtName || targetCase.courtName,
+        portalUrl: targetCase.portalUrl || 'https://services.ecourts.gov.in',
+        hearingDate: effectiveDate,
+        bench: bench || targetCase.bench || '',
         caseNumber: targetCase.caseNumber,
         caseTitle: targetCase.title,
         createdAt: serverTimestamp()
@@ -977,28 +961,40 @@ export const AppProvider = ({ children }) => {
 
       const docRef = await addDoc(collection(db, 'documents'), orderDocRecord);
 
-      await updateCase(caseId, {
-        lastOrder: scrapedSummary,
-        lastHearingDate: today,
-        nextHearingDate: new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0]
-      });
+      // Update case with actual order details if provided
+      const caseUpdates = {};
+      if (summary) caseUpdates.lastOrder = summary;
+      if (effectiveDate) caseUpdates.lastHearingDate = effectiveDate;
+      if (nextListingDate) caseUpdates.nextHearingDate = nextListingDate;
+      if (bench) caseUpdates.bench = bench;
+
+      if (Object.keys(caseUpdates).length > 0) {
+        await updateCase(caseId, caseUpdates);
+      }
 
       await addDoc(collection(db, 'notifications'), {
-        title: `New Order Fetched: ${targetCase.caseNumber}`,
-        message: `Daily bench order pulled from ${courtMeta.name} (${courtMeta.portalUrl || 'Judicial Portal'}) and filed.`,
+        title: `Official Order Ingested: ${targetCase.caseNumber}`,
+        message: `Official court order dated ${effectiveDate} from ${courtName || targetCase.courtName} has been archived into Google Drive.`,
         type: 'ORDER_SYNC',
         caseId: targetCase.id,
         timestamp: new Date().toISOString(),
         read: false
       });
 
-      showToast(`Order fetched from ${courtMeta.name} and saved!`);
-      return { success: true, doc: { id: docRef.id, ...orderDocRecord }, summary: scrapedSummary, portalUrl: courtMeta.portalUrl };
+      showToast(`Official Court Order archived into case dossier!`);
+      return { success: true, doc: { id: docRef.id, ...orderDocRecord } };
     } catch (err) {
-      console.error(err);
+      console.error('Error ingesting court order:', err);
       showToast(err.message, 'error');
-      return { success: false };
+      return { success: false, message: err.message };
     }
+  };
+
+  const simulateFetchCourtOrder = async (caseId, courtSource) => {
+    return ingestOfficialCourtOrder({
+      caseId,
+      courtName: courtSource
+    });
   };
 
   const markNotificationRead = async (notifId) => {
@@ -1083,6 +1079,7 @@ export const AppProvider = ({ children }) => {
         deleteTask,
         scheduleConference,
         setHearingSchedule,
+        ingestOfficialCourtOrder,
         simulateFetchCourtOrder,
         markNotificationRead,
         clearAllNotifications,

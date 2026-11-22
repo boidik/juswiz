@@ -314,7 +314,7 @@ export const CaseWorkspace = () => {
                 onClick={() => setIsOrderFetcherOpen(true)}
                 className="px-3.5 py-1.5 rounded-pill bg-terracotta text-white text-xs font-semibold shadow-xs hover:bg-terracotta/90 flex items-center gap-1.5 transition-all"
               >
-                <Cpu className="w-3.5 h-3.5" /> Fetch Daily Orders Online
+                <Gavel className="w-3.5 h-3.5" /> Court Database & Ingest
               </button>
             </div>
           </div>
@@ -736,6 +736,7 @@ export const CaseWorkspace = () => {
         onClose={() => setSelectedOrderToRead(null)}
         order={selectedOrderToRead}
         caseData={selectedCase}
+        onOpenIngest={() => setIsOrderFetcherOpen(true)}
       />
 
       <CaseRegistrationModal

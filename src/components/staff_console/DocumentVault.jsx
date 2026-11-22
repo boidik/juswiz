@@ -175,9 +175,9 @@ export const DocumentVault = ({
               <button
                 onClick={onOpenOrderFetcher}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-pill bg-warm-sand/80 hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold transition-all shadow-xs"
-                title="Fetch live bench orders from judicial portal"
+                title="Open Judicial Database Gateway & Order Ingestion"
               >
-                <Gavel className="w-3.5 h-3.5 text-terracotta" /> Fetch Order
+                <Gavel className="w-3.5 h-3.5 text-terracotta" /> Court Database & Ingest
               </button>
             )}
 
@@ -429,6 +429,7 @@ export const DocumentVault = ({
         onClose={() => setReadingOrder(null)}
         order={readingOrder}
         caseData={targetCase}
+        onOpenIngest={onOpenOrderFetcher}
       />
 
     </div>
