@@ -15,6 +15,7 @@ import ssl
 import urllib.request
 import urllib.parse
 import http.cookiejar
+from concurrent.futures import ThreadPoolExecutor
 
 BASE_URL = "https://www.calcuttahighcourt.gov.in"
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
@@ -97,48 +98,65 @@ CASE_TYPE_MAPS = {
 def parse_case_info(case_number="", case_type="", cnr="", court_code="", court_name=""):
     """
     Parses arbitrary case string, case type, or CNR into:
-    (establishment, case_type_code, reg_no, year)
+    (establishment, case_type_code, reg_no, year, normalized_type_label)
     """
     est = "WBCHCA"  # Default to Appellate Side
-    full_text = f"{court_code} {court_name} {cnr} {case_number}".upper()
+    full_text = f"{court_code} {court_name} {cnr} {case_number} {case_type}".upper()
 
-    if "ORIGINAL" in full_text or "CAL_HC_OS" in full_text or "WBCHCO" in full_text or "WBHC02" in full_text:
+    if any(k in full_text for k in ["ORIGINAL", "CAL_HC_OS", "WBCHCO", "WBHC02"]):
         est = "WBCHCO"
-    elif "JALPAIGURI" in full_text or "WBCHCJ" in full_text or "WBHC03" in full_text:
+    elif any(k in full_text for k in ["JALPAIGURI", "WBCHCJ", "WBHC03"]):
         est = "WBCHCJ"
-    elif "PORT BLAIR" in full_text or "PORTBLAIR" in full_text or "WBCHCP" in full_text or "WBHC04" in full_text:
+    elif any(k in full_text for k in ["PORT BLAIR", "PORTBLAIR", "WBCHCP", "WBHC04"]):
         est = "WBCHCP"
 
     extracted_type = ""
     reg_no = ""
     year = ""
 
-    # 1. Try parsing case_number, e.g. "WPA 14820 of 2025", "M.A. 88 of 2026", "WPA/1/2024", "CS 412/2024"
+    # 1. Try parsing case_number: e.g. "IP COM 7 of 2024", "WPA 14820 of 2025", "CS 412/2024", "M.A. 88 of 2026"
     if case_number:
-        # Match pattern: Type (letters/dots/hyphens) then optional space/'of'/'/' then number then year
-        m = re.search(r'([A-Za-z.\s-]+?)\s*(?:/|\s+of\s+|\s+)?\s*(\d+)\s*(?:/|\s+of\s+|\s+)?\s*(\d{4})', case_number.strip())
+        # Pattern A: Type + number + year
+        m = re.search(r'([A-Za-z.()\s-]+?)\s*(?:/|\s+of\s+|\s+)?\s*(\d+)\s*(?:/|\s+of\s+|\s+)?\s*(\d{4})', case_number.strip())
         if m:
-            raw_type, r_no, yr = m.groups()
-            cleaned_t = re.sub(r'[^A-Za-z-]', '', raw_type).upper()
+            raw_t, r_no, yr = m.groups()
+            cleaned_t = re.sub(r'[^A-Za-z0-9()-]', '', raw_t.strip()).upper()
             if cleaned_t:
                 extracted_type = cleaned_t
                 reg_no = str(int(r_no))
                 year = yr
+        else:
+            # Pattern B: Number + year only (e.g. "7 of 2024" or "7/2024")
+            m_num = re.search(r'^\s*(\d+)\s*(?:/|\s+of\s+|\s+)\s*(\d{4})\s*$', case_number.strip())
+            if m_num:
+                reg_no = str(int(m_num.group(1)))
+                year = m_num.group(2)
 
     # 2. If type not yet found, check case_type string
     if not extracted_type and case_type:
-        tm = re.search(r'^([A-Za-z-]+)', case_type.strip())
+        tm = re.search(r'^([A-Za-z0-9() -]+?)(?:\s*\(|$)', case_type.strip())
         if tm:
-            extracted_type = tm.group(1).upper()
+            extracted_type = re.sub(r'[^A-Za-z0-9()-]', '', tm.group(1)).upper()
 
-    # 3. Check CNR if reg_no/year missing (e.g. WBHC01-014820-2025 or WBCHCA0020582024)
-    if (not reg_no or not year) and cnr:
-        cm = re.search(r'(?:WBHC\d{2}|WBCHCA|WBCHCO|WBCHCJ|WBCHCP)-?0*(\d+)-?(\d{4})', cnr.strip().upper())
-        if cm:
-            if not reg_no:
-                reg_no = str(int(cm.group(1)))
-            if not year:
-                year = cm.group(2)
+    # 3. Check CNR (e.g. WBCHCO-001273-2024, WBCHCA0000012024, WBHC01-014820-2025)
+    if cnr:
+        cnr_clean = cnr.strip().upper()
+        if "WBCHCO" in cnr_clean or "WBHC02" in cnr_clean:
+            est = "WBCHCO"
+        elif "WBCHCA" in cnr_clean or "WBHC01" in cnr_clean:
+            est = "WBCHCA"
+        elif "WBCHCJ" in cnr_clean or "WBHC03" in cnr_clean:
+            est = "WBCHCJ"
+        elif "WBCHCP" in cnr_clean or "WBHC04" in cnr_clean:
+            est = "WBCHCP"
+
+        if not reg_no or not year:
+            cm = re.search(r'(?:WBHC\d{2}|WBCHCA|WBCHCO|WBCHCJ|WBCHCP)-?0*(\d+)-?(\d{4})', cnr_clean)
+            if cm:
+                if not reg_no:
+                    reg_no = str(int(cm.group(1)))
+                if not year:
+                    year = cm.group(2)
 
     # Resolve case_type_code from dictionary
     est_map = CASE_TYPE_MAPS.get(est, CASE_TYPE_MAPS["WBCHCA"])
@@ -153,7 +171,18 @@ def parse_case_info(case_number="", case_type="", cnr="", court_code="", court_n
         "MANDAMUSAPPEAL": "MAT",
         "CIVILAPPEAL": "FMA",
         "CIVILSUIT": "CS",
-        "SUIT": "CS"
+        "SUIT": "CS",
+        "IPCOM": "IP-COM",
+        "CSCOM": "CS-COM",
+        "GACOM": "GA-COM",
+        "APCOM": "AP-COM",
+        "TSCOM": "TS-COM",
+        "MSCOM": "MS-COM",
+        "ADCOM": "AD-COM",
+        "AOCOM": "AO-COM",
+        "CCCOM": "CC-COM",
+        "ECCOM": "EC-COM",
+        "TACOM": "TA-COM"
     }
 
     norm_type = type_alias.get(extracted_type, extracted_type)
@@ -161,19 +190,20 @@ def parse_case_info(case_number="", case_type="", cnr="", court_code="", court_n
     if norm_type in est_map:
         type_code = est_map[norm_type]
     else:
-        # Fuzzy search
+        # Match by stripped alphanumeric
+        clean_norm = re.sub(r'[^A-Z0-9]', '', norm_type).upper()
         for k, v in est_map.items():
-            clean_k = re.sub(r'[^A-Za-z0-9]', '', k).upper()
-            clean_n = re.sub(r'[^A-Za-z0-9]', '', norm_type).upper()
-            if clean_k == clean_n or clean_k in clean_n or clean_n in clean_k:
+            if re.sub(r'[^A-Z0-9]', '', k).upper() == clean_norm:
                 type_code = v
+                norm_type = k
                 break
 
     # If still not found, default to WPA (12) for Appellate or CS (52) for Original
     if not type_code:
         type_code = 52 if est == "WBCHCO" else 12
+        norm_type = "CS" if est == "WBCHCO" else "WPA"
 
-    return est, type_code, reg_no, year, extracted_type or "WPA"
+    return est, type_code, reg_no, year, norm_type
 
 def parse_order_table(html_rows):
     """
@@ -414,21 +444,19 @@ def main():
         }))
         sys.exit(0)
 
-    # Download genuine PDF files for each order
-    downloaded_orders = []
+    # Download genuine PDF files for each order in parallel using ThreadPoolExecutor
     clean_case_name = re.sub(r'[^a-zA-Z0-9_-]', '_', args.case_number or f"{type_label}_{reg_no}_{year}")
 
-    for idx, ord_item in enumerate(parsed_orders):
+    def fetch_single_order_pdf(item_tuple):
+        idx, ord_item = item_tuple
         order_data_param = ord_item.get("orderData", "")
         pdf_url = None
         pdf_file_path = None
         file_size = 0
 
-        # Standard clean filename
         raw_date = ord_item.get("orderDate", "").replace("/", "-")
         date_parts = raw_date.split("-")
         if len(date_parts) == 3 and len(date_parts[2]) == 4:
-            # DD-MM-YYYY -> YYYY-MM-DD
             iso_date = f"{date_parts[2]}-{date_parts[1]}-{date_parts[0]}"
         else:
             iso_date = raw_date or "2026-01-01"
@@ -436,9 +464,22 @@ def main():
         file_name = f"{iso_date}_ORDER_CAL_HC_{clean_case_name}_{idx + 1}.pdf"
         target_path = os.path.join(args.output_dir, file_name)
 
+        # Check local cache first
+        if os.path.exists(target_path) and os.path.getsize(target_path) > 1000:
+            return {
+                "orderNumber": ord_item["orderNumber"],
+                "orderDate": ord_item["orderDate"],
+                "coram": ord_item["coram"],
+                "orderSummary": ord_item["orderSummary"],
+                "fileName": file_name,
+                "filePath": target_path,
+                "pdfUrl": None,
+                "fileSize": os.path.getsize(target_path),
+                "hasPdf": True
+            }
+
         if order_data_param:
             try:
-                # Call show_pdf
                 pdf_req_data = urllib.parse.urlencode({
                     "order_data": order_data_param,
                     "_token": csrf_token
@@ -461,7 +502,6 @@ def main():
 
                 if pdf_link.startswith("http"):
                     pdf_url = pdf_link
-                    # Download binary
                     req_dl = urllib.request.Request(pdf_url, headers={"User-Agent": UA})
                     with opener.open(req_dl, timeout=30) as resp_dl:
                         pdf_bytes = resp_dl.read()
@@ -470,10 +510,10 @@ def main():
                         file_size = len(pdf_bytes)
                         pdf_file_path = target_path
 
-            except Exception as dl_err:
+            except Exception:
                 pass
 
-        downloaded_orders.append({
+        return {
             "orderNumber": ord_item["orderNumber"],
             "orderDate": ord_item["orderDate"],
             "coram": ord_item["coram"],
@@ -483,7 +523,11 @@ def main():
             "pdfUrl": pdf_url,
             "fileSize": file_size,
             "hasPdf": bool(file_size > 0)
-        })
+        }
+
+    # Parallel download with 8 workers
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        downloaded_orders = list(pool.map(fetch_single_order_pdf, enumerate(parsed_orders)))
 
     print(json.dumps({
         "success": True,

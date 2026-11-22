@@ -79,6 +79,11 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
   // Check microservice health & load live court captcha session on mount
   useEffect(() => {
     if (!isOpen) return;
+    setFetchedOrders([]);
+    setSyncLogs([]);
+    setSyncResult(null);
+    setCaptchaInput('');
+    setCaptchaError(null);
     checkMicroserviceHealth();
     loadLiveCourtCaptcha();
   }, [isOpen, targetCase?.id]);
@@ -205,21 +210,15 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
   };
 
   // Trigger On-Demand Automated Microservice Sync (OCR)
-  const handleTriggerOnDemandSync = async (customOverrides = null) => {
+  const handleTriggerOnDemandSync = async () => {
     setIsSyncing(true);
     setSyncResult(null);
-
-    const queryCaseNumber = customOverrides?.caseNumber || caseNumber;
-    const queryCnrNumber = customOverrides?.cnrNumber || cnrNumber;
-    const queryCourtCode = customOverrides?.courtCode || targetCase.courtCode;
-    const queryCourtName = customOverrides?.courtName || courtName;
-    const queryCaseType = customOverrides?.caseType || targetCase.caseType;
-    const queryIsCalHc = isCalHc || Boolean(customOverrides?.isCalHc);
+    setFetchedOrders([]);
 
     setSyncLogs([
       `[00.0s] Handshaking with self-hosted Court Sync Microservice (${microserviceUrl})...`,
-      `[00.3s] Initializing live ${queryIsCalHc ? 'Calcutta High Court (calcuttahighcourt.gov.in)' : 'eCourts CIS'} session for Case: ${queryCaseNumber}...`,
-      `[00.7s] Querying court database registry for ${queryIsCalHc ? queryCaseNumber : 'CNR: ' + queryCnrNumber}...`
+      `[00.3s] Initializing live ${isCalHc ? 'Calcutta High Court (calcuttahighcourt.gov.in)' : 'eCourts CIS'} session for Case: ${caseNumber}...`,
+      `[00.7s] Querying court database registry for ${caseNumber} (${isCalHc ? courtName : 'CNR: ' + cnrNumber})...`
     ]);
 
     try {
@@ -229,11 +228,11 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           caseId: targetCase.id,
-          cnrNumber: queryCnrNumber,
-          caseNumber: queryCaseNumber,
-          caseType: queryCaseType,
-          courtCode: queryCourtCode,
-          courtName: queryCourtName,
+          cnrNumber,
+          caseNumber,
+          caseType: targetCase.caseType,
+          courtCode: targetCase.courtCode,
+          courtName,
           driveFolderId: targetCase.driveFolderId,
           googleAccessToken,
           dedicatedFolderName
@@ -244,13 +243,16 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
       setSyncResult(data);
 
       if (data.success) {
+        const orderCount = data.ordersCount || data.archivedOrders?.length || 0;
         setSyncLogs(prev => [
           ...prev,
           `[02.5s] Judicial Database Response: ${data.message}`,
           `[03.0s] Dedicated Folder: /${dedicatedFolderName}/ synchronized.`,
-          `[03.5s] Successfully discovered and archived ${data.ordersCount || data.archivedOrders?.length || 0} genuine court orders!`
+          orderCount > 0 
+            ? `[03.5s] Successfully discovered and archived ${orderCount} genuine court order(s) for ${caseNumber}!`
+            : `[03.5s] Case verified in judicial registry. Orders pending upload by court registry.`
         ]);
-        showToast(data.message || `Discovered ${data.ordersCount || 0} authentic court orders!`);
+        showToast(data.message || `Discovered ${orderCount} authentic court orders for ${caseNumber}!`);
         if (data.archivedOrders?.length > 0) {
           setFetchedOrders(data.archivedOrders);
           for (const ord of data.archivedOrders) {
@@ -258,7 +260,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
               caseId: targetCase.id,
               fileName: ord.fileName,
               orderDate: ord.orderDate,
-              courtName: queryCourtName,
+              courtName,
               summary: ord.orderSummary || 'Authentic Signed Court Order',
               bench: ord.coram || targetCase.bench,
               localUrl: ord.localUrl,
@@ -505,30 +507,16 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
                   </div>
                 </div>
 
-                {isCalHc && (
-                  <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-1.5 text-amber-900 font-medium">
-                      <Sparkles className="w-3.5 h-3.5 text-terracotta shrink-0" />
-                      <span>Calcutta HC Live Verification: Test on verified court matter <strong>WPA 1 of 2024</strong> (10 signed orders)</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleTriggerOnDemandSync({
-                        caseNumber: 'WPA 1 of 2024',
-                        cnrNumber: 'WBCHCA0000012024',
-                        courtCode: 'CAL_HC_AS',
-                        courtName: 'Calcutta High Court (Appellate Side)',
-                        caseType: 'WPA',
-                        isCalHc: true
-                      })}
-                      disabled={isSyncing}
-                      className="px-3 py-1 rounded-pill bg-terracotta hover:bg-terracotta/90 text-white font-bold text-[11px] shadow-xs shrink-0 flex items-center gap-1 transition-all disabled:opacity-50"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-                      <span>Fetch WPA 1/2024</span>
-                    </button>
-                  </div>
-                )}
+                <div className="p-3 rounded-2xl bg-warm-sand/50 border border-warm-borderSubtle flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <span className="text-warm-graphite">
+                    Registered Case in Chambers: <strong className="text-warm-obsidian font-mono">{caseNumber}</strong> ({courtName})
+                  </span>
+                  {cnrNumber && (
+                    <span className="text-[11px] font-mono text-warm-muted">
+                      CNR: <strong className="text-warm-obsidian">{cnrNumber}</strong>
+                    </span>
+                  )}
+                </div>
 
                 {/* Live Daemon Log Stream */}
                 {syncLogs.length > 0 && (

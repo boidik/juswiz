@@ -52,7 +52,7 @@ const CASE_TYPE_CODES = {
  */
 function parseCaseParams({ caseNumber = '', caseType = '', cnrNumber = '', courtCode = '', courtName = '' } = {}) {
   let est = 'WBCHCA';
-  const full = `${courtCode} ${courtName} ${cnrNumber} ${caseNumber}`.toUpperCase();
+  const full = `${courtCode} ${courtName} ${cnrNumber} ${caseNumber} ${caseType}`.toUpperCase();
 
   if (full.includes('ORIGINAL') || full.includes('CAL_HC_OS') || full.includes('WBCHCO') || full.includes('WBHC02')) {
     est = 'WBCHCO';
@@ -66,25 +66,40 @@ function parseCaseParams({ caseNumber = '', caseType = '', cnrNumber = '', court
   let regNo = '';
   let year = '';
 
+  // 1. Try parsing caseNumber
   if (caseNumber) {
-    const m = caseNumber.match(/([A-Za-z.\s-]+?)\s*(?:\/|\s+of\s+|\s+)?\s*(\d+)\s*(?:\/|\s+of\s+|\s+)?\s*(\d{4})/i);
+    const m = caseNumber.match(/([A-Za-z.()\s-]+?)\s*(?:\/|\s+of\s+|\s+)?\s*(\d+)\s*(?:\/|\s+of\s+|\s+)?\s*(\d{4})/i);
     if (m) {
-      extractedType = m[1].replace(/[^A-Za-z-]/g, '').toUpperCase();
+      extractedType = m[1].replace(/[^A-Za-z0-9()-]/g, '').toUpperCase();
       regNo = parseInt(m[2], 10).toString();
       year = m[3];
+    } else {
+      const mNum = caseNumber.match(/^\s*(\d+)\s*(?:\/|\s+of\s+|\s+)\s*(\d{4})\s*$/);
+      if (mNum) {
+        regNo = parseInt(mNum[1], 10).toString();
+        year = mNum[2];
+      }
     }
   }
 
+  // 2. Check caseType
   if (!extractedType && caseType) {
-    const tm = caseType.match(/^([A-Za-z-]+)/);
-    if (tm) extractedType = tm[1].toUpperCase();
+    const tm = caseType.match(/^([A-Za-z0-9() -]+?)(?:\s*\(|$)/);
+    if (tm) extractedType = tm[1].replace(/[^A-Za-z0-9()-]/g, '').toUpperCase();
   }
 
-  if ((!regNo || !year) && cnrNumber) {
-    const cm = cnrNumber.toUpperCase().match(/(?:WBHC\d{2}|WBCHCA|WBCHCO|WBCHCJ|WBCHCP)-?0*(\d+)-?(\d{4})/);
-    if (cm) {
-      if (!regNo) regNo = parseInt(cm[1], 10).toString();
-      if (!year) year = cm[2];
+  // 3. Check CNR
+  if (cnrNumber) {
+    const cnrClean = cnrNumber.toUpperCase();
+    if (cnrClean.includes('WBCHCO') || cnrClean.includes('WBHC02')) est = 'WBCHCO';
+    else if (cnrClean.includes('WBCHCA') || cnrClean.includes('WBHC01')) est = 'WBCHCA';
+
+    if (!regNo || !year) {
+      const cm = cnrClean.match(/(?:WBHC\d{2}|WBCHCA|WBCHCO|WBCHCJ|WBCHCP)-?0*(\d+)-?(\d{4})/);
+      if (cm) {
+        if (!regNo) regNo = parseInt(cm[1], 10).toString();
+        if (!year) year = cm[2];
+      }
     }
   }
 
@@ -97,23 +112,37 @@ function parseCaseParams({ caseNumber = '', caseType = '', cnrNumber = '', court
     'MANDAMUSAPPEAL': 'MAT',
     'CIVILAPPEAL': 'FMA',
     'CIVILSUIT': 'CS',
-    'SUIT': 'CS'
+    'SUIT': 'CS',
+    'IPCOM': 'IP-COM',
+    'CSCOM': 'CS-COM',
+    'GACOM': 'GA-COM',
+    'APCOM': 'AP-COM',
+    'TSCOM': 'TS-COM',
+    'MSCOM': 'MS-COM',
+    'ADCOM': 'AD-COM',
+    'AOCOM': 'AO-COM',
+    'CCCOM': 'CC-COM',
+    'ECCOM': 'EC-COM',
+    'TACOM': 'TA-COM'
   };
 
-  const normType = alias[extractedType] || extractedType;
+  let normType = alias[extractedType] || extractedType;
   let typeCode = estMap[normType];
 
   if (!typeCode) {
+    const cleanNorm = normType.replace(/[^A-Z0-9]/g, '');
     for (const [k, v] of Object.entries(estMap)) {
-      if (k.replace(/[^A-Z0-9]/g, '') === normType.replace(/[^A-Z0-9]/g, '')) {
+      if (k.replace(/[^A-Z0-9]/g, '') === cleanNorm) {
         typeCode = v;
+        normType = k;
         break;
       }
     }
   }
 
   if (!typeCode) {
-    typeCode = est === 'WBCHCO' ? 52 : 12; // Default to WPA or CS
+    typeCode = est === 'WBCHCO' ? 52 : 12; // Default to CS or WPA
+    normType = est === 'WBCHCO' ? 'CS' : 'WPA';
   }
 
   return {
@@ -121,7 +150,7 @@ function parseCaseParams({ caseNumber = '', caseType = '', cnrNumber = '', court
     typeCode: typeCode.toString(),
     regNo,
     year,
-    typeLabel: extractedType || 'WPA'
+    typeLabel: normType || 'WPA'
   };
 }
 
@@ -406,7 +435,7 @@ function queryCalcuttaHighCourtAuto({
 
     console.log(`[Calcutta High Court Sync] Invoking autonomous order fetcher for: ${caseNumber} (${courtCode})...`);
 
-    execFile('python3', args, { timeout: 120000, maxBuffer: 25 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile('python3', args, { timeout: 180000, maxBuffer: 30 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (stdout && stdout.trim()) {
         try {
           const result = JSON.parse(stdout.trim());
