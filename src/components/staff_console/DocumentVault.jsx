@@ -16,6 +16,7 @@ import {
   Eye
 } from 'lucide-react';
 import { OrderReaderModal } from './OrderReaderModal';
+import { getExactFileDriveUrl } from '../../services/googleWorkspace';
 
 export const DocumentVault = ({ 
   caseId, 
@@ -395,20 +396,22 @@ export const DocumentVault = ({
                     </a>
                   )}
 
+                  {/* Direct Exact File in Google Drive */}
                   <a
-                    href={doc.driveUrl || targetCase?.driveFolderUrl || 'https://drive.google.com/drive/my-drive'}
+                    href={getExactFileDriveUrl(doc)}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-3.5 py-1.5 rounded-pill border border-warm-borderSubtle hover:bg-white text-xs font-medium text-warm-graphite flex items-center gap-1.5 transition-colors shadow-xs"
+                    className="px-3.5 py-1.5 rounded-pill border border-warm-borderSubtle hover:bg-white text-xs font-semibold text-warm-graphite flex items-center gap-1.5 transition-colors shadow-xs"
+                    title={`Open exact file in Google Drive: ${doc.name}`}
                   >
                     <ExternalLink className="w-3.5 h-3.5 text-terracotta" />
-                    <span>{doc.hasRealFileLink ? 'View File in Drive' : 'View in Case Drive'}</span>
+                    <span>Exact File in Drive</span>
                   </a>
 
                   <button
-                    onClick={() => copyDocLink(doc.driveUrl || targetCase?.driveFolderUrl || '')}
+                    onClick={() => copyDocLink(getExactFileDriveUrl(doc))}
                     className="p-2 rounded-full border border-warm-borderSubtle hover:bg-white text-warm-muted hover:text-warm-obsidian transition-colors"
-                    title="Copy Direct Share Link"
+                    title="Copy Exact File Share Link"
                   >
                     <Share2 className="w-3.5 h-3.5" />
                   </button>

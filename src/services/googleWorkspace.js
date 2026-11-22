@@ -95,6 +95,38 @@ export const normalizeDriveFileUrl = (input, parentFolderUrl = 'https://drive.go
 };
 
 /**
+ * Resolves the exact Google Drive link for an individual file/document.
+ * CRITICAL: Never returns a folder URL for a file. If a fileId exists,
+ * it opens https://drive.google.com/file/d/<fileId>/view.
+ * If not yet uploaded with an explicit fileId, it searches Drive for the exact file name.
+ */
+export const getExactFileDriveUrl = (doc) => {
+  if (!doc) return 'https://drive.google.com/drive/my-drive';
+  
+  // 1. Check direct driveFileId or fileId property
+  const candidateId = doc.driveFileId || doc.fileId;
+  if (candidateId && isValidGoogleDriveId(candidateId)) {
+    return `https://drive.google.com/file/d/${candidateId}/view`;
+  }
+  
+  // 2. Check if driveUrl contains an authentic file ID (/file/d/...)
+  if (doc.driveUrl && typeof doc.driveUrl === 'string') {
+    const extractedId = extractDriveFileId(doc.driveUrl);
+    if (extractedId) {
+      return `https://drive.google.com/file/d/${extractedId}/view`;
+    }
+  }
+
+  // 3. Exact file search on Google Drive (avoids dumping into folder)
+  const fileName = doc.name || doc.originalName || doc.fileName;
+  if (fileName) {
+    return `https://drive.google.com/drive/search?q=name:'${encodeURIComponent(fileName)}'`;
+  }
+
+  return 'https://drive.google.com/drive/my-drive';
+};
+
+/**
  * Triggers Google Identity Services OAuth popup to obtain an access token
  * with drive.file and calendar.events scopes
  */

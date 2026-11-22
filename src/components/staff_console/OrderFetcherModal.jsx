@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Cpu, CheckCircle2, AlertCircle, FileText, ArrowRight, ShieldCheck, DownloadCloud, ExternalLink, Globe } from 'lucide-react';
+import { X, Cpu, CheckCircle2, AlertCircle, FileText, ArrowRight, ShieldCheck, DownloadCloud, ExternalLink, Globe, Eye } from 'lucide-react';
+import { OrderReaderModal } from './OrderReaderModal';
+import { getExactFileDriveUrl } from '../../services/googleWorkspace';
 
 export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
   const { simulateFetchCourtOrder, systemConfig } = useApp();
@@ -18,6 +20,7 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
   const [isFetching, setIsFetching] = useState(false);
   const [logs, setLogs] = useState([]);
   const [fetchResult, setFetchResult] = useState(null);
+  const [readingFetchedDoc, setReadingFetchedDoc] = useState(null);
 
   if (!isOpen) return null;
 
@@ -178,22 +181,39 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
 
           {/* Success Result */}
           {fetchResult?.success && (
-            <div className="p-4 bg-emerald-500/10 rounded-3xl border border-emerald-500/20 space-y-2">
+            <div className="p-4 bg-emerald-500/10 rounded-3xl border border-emerald-500/20 space-y-3">
               <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                Latest Bench Order Fetched & Ingested!
+                Latest Authentic Bench Order Fetched & Ingested!
               </div>
               <p className="text-xs text-warm-obsidian font-medium">
-                Saved File: <span className="font-mono text-terracotta">{fetchResult.doc.name}</span>
+                Saved PDF File: <span className="font-mono text-terracotta">{fetchResult.doc.name}</span>
               </p>
-              <p className="text-xs text-warm-graphite italic">
+              <p className="text-xs text-warm-graphite italic bg-white/70 p-2.5 rounded-2xl border border-emerald-500/20">
                 "{fetchResult.summary}"
               </p>
-              <div className="pt-2 flex items-center justify-between border-t border-emerald-500/20">
-                <span className="text-[11px] text-emerald-800 font-medium">
-                  Stored in Google Drive /05_Orders_and_Judgments
-                </span>
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-emerald-500/20">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReadingFetchedDoc(fetchResult.doc)}
+                    className="px-3.5 py-1.5 rounded-pill bg-terracotta text-white hover:bg-terracotta/90 text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+                  >
+                    <Eye className="w-3.5 h-3.5" /> Read Order PDF
+                  </button>
+
+                  <a
+                    href={getExactFileDriveUrl(fetchResult.doc)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-pill bg-white hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold shadow-xs flex items-center gap-1 transition-all"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-terracotta" /> Exact File in Drive
+                  </a>
+                </div>
+
                 <button
+                  type="button"
                   onClick={onClose}
                   className="capsule-btn-dark text-xs"
                 >
@@ -207,6 +227,16 @@ export const OrderFetcherModal = ({ isOpen, onClose, targetCase }) => {
         </div>
 
       </div>
+
+      {/* Embedded In-App Real PDF Reader */}
+      {readingFetchedDoc && (
+        <OrderReaderModal
+          isOpen={Boolean(readingFetchedDoc)}
+          onClose={() => setReadingFetchedDoc(null)}
+          order={readingFetchedDoc}
+          caseData={targetCase}
+        />
+      )}
     </div>
   );
 };

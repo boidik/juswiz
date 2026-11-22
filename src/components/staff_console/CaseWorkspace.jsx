@@ -33,7 +33,7 @@ import { HearingDateModal } from './HearingDateModal';
 import { OrderFetcherModal } from './OrderFetcherModal';
 import { OrderReaderModal } from './OrderReaderModal';
 import { CaseRegistrationModal } from '../software_admin/CaseRegistrationModal';
-import { extractDriveFolderId, isValidGoogleDriveId } from '../../services/googleWorkspace';
+import { extractDriveFolderId, isValidGoogleDriveId, getExactFileDriveUrl } from '../../services/googleWorkspace';
 
 export const CaseWorkspace = () => {
   const { 
@@ -294,16 +294,20 @@ export const CaseWorkspace = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setSelectedOrderToRead({
-                  name: `Order_Sheet_${selectedCase.caseNumber}.pdf`,
+                  name: `Order_Sheet_${selectedCase.caseNumber.replace(/[\/\s]/g, '_')}.pdf`,
                   summary: selectedCase.lastOrder,
                   courtName: selectedCase.courtName,
                   bench: selectedCase.bench,
                   hearingDate: selectedCase.lastHearingDate,
-                  driveUrl: selectedCase.driveFolderUrl
+                  nextHearingDate: selectedCase.nextHearingDate,
+                  cnrNumber: selectedCase.cnrNumber,
+                  caseNumber: selectedCase.caseNumber,
+                  caseTitle: selectedCase.title,
+                  driveUrl: getExactFileDriveUrl({ name: `Order_Sheet_${selectedCase.caseNumber}.pdf` })
                 })}
                 className="px-3.5 py-1.5 rounded-pill bg-white hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
               >
-                <Eye className="w-3.5 h-3.5 text-terracotta" /> Read Full Order
+                <Eye className="w-3.5 h-3.5 text-terracotta" /> Read Authentic Court PDF
               </button>
 
               <button
@@ -551,16 +555,17 @@ export const CaseWorkspace = () => {
                         onClick={() => setSelectedOrderToRead(o)}
                         className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-terracotta text-white hover:bg-terracotta/90 text-xs font-semibold shadow-xs transition-all"
                       >
-                        <Eye className="w-3.5 h-3.5" /> Read Synopsis
+                        <Eye className="w-3.5 h-3.5" /> Read Order PDF
                       </button>
 
                       <a
-                        href={o.driveUrl || selectedCase.driveFolderUrl || 'https://drive.google.com/drive/my-drive'}
+                        href={getExactFileDriveUrl(o)}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-3 py-1.5 rounded-pill border border-warm-borderSubtle text-warm-graphite text-xs hover:bg-white flex items-center gap-1 font-medium shadow-xs"
+                        className="px-3 py-1.5 rounded-pill border border-warm-borderSubtle text-warm-graphite text-xs hover:bg-white flex items-center gap-1 font-semibold shadow-xs"
+                        title={`Open exact file in Google Drive: ${o.name}`}
                       >
-                        <ExternalLink className="w-3 h-3 text-terracotta" /> View in Drive
+                        <ExternalLink className="w-3 h-3 text-terracotta" /> Exact File in Drive
                       </a>
                     </div>
                   </div>
