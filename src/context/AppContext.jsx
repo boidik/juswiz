@@ -914,13 +914,16 @@ export const AppProvider = ({ children }) => {
     let driveFileId = null;
     let driveUrl = `https://drive.google.com/drive/search?q=name:'${encodeURIComponent(orderTitle)}'`;
 
+    const dedicatedFolderName = systemConfig?.dedicatedOrderFolder || '05_AutoFetched_Court_Orders';
+
     try {
-      // Upload genuine court PDF to case folder in Google Drive
+      // Upload genuine court PDF to dedicated folder in Google Drive
       if (file instanceof Blob || file instanceof File) {
         const uploadRes = await uploadFileToDrive({
           file,
           fileName: orderTitle,
-          parentFolderId: targetCase.driveFolderId
+          parentFolderId: targetCase.driveFolderId,
+          subfolderName: dedicatedFolderName
         });
 
         if (uploadRes?.fileId) {
@@ -933,7 +936,7 @@ export const AppProvider = ({ children }) => {
         caseId: targetCase.id,
         name: orderTitle,
         originalName: file?.name || orderTitle,
-        folder: '05_Orders_and_Judgments',
+        folder: dedicatedFolderName,
         category: 'Court Order',
         party: 'Court',
         uploadedBy: currentUser?.name || 'Chambers Counsel',

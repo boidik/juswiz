@@ -283,7 +283,7 @@ export const createCaseFolderInDrive = async ({
 /**
  * Uploads a file directly into a Google Drive folder using Multipart Upload
  */
-export const uploadFileToDrive = async ({ file, parentFolderId, fileName }) => {
+export const uploadFileToDrive = async ({ file, parentFolderId, fileName, subfolderName }) => {
   const token = getStoredGoogleToken();
   const safeName = fileName || file?.name || 'document.pdf';
 
@@ -299,9 +299,46 @@ export const uploadFileToDrive = async ({ file, parentFolderId, fileName }) => {
   }
 
   try {
+    let targetFolderId = parentFolderId;
+
+    // Check or create dedicated subfolder if requested
+    if (parentFolderId && subfolderName) {
+      try {
+        const query = encodeURIComponent(`'${parentFolderId}' in parents and name = '${subfolderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+        const listResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (listResp.ok) {
+          const listData = await listResp.json();
+          if (listData.files && listData.files.length > 0) {
+            targetFolderId = listData.files[0].id;
+          } else {
+            const createResp = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                name: subfolderName,
+                mimeType: 'application/vnd.google-apps.folder',
+                parents: [parentFolderId]
+              })
+            });
+            if (createResp.ok) {
+              const createdFolder = await createResp.json();
+              targetFolderId = createdFolder.id;
+            }
+          }
+        }
+      } catch (folderErr) {
+        console.warn('Subfolder lookup error, falling back to parent:', folderErr);
+      }
+    }
+
     const metadata = {
       name: safeName,
-      parents: parentFolderId ? [parentFolderId] : []
+      parents: targetFolderId ? [targetFolderId] : []
     };
 
     const boundary = '-------314159265358979323846';
