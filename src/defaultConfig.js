@@ -138,8 +138,13 @@ export const defaultSystemConfig = {
     { id: 'f3', name: '03_Drafts_In_Progress', description: 'Collaborative Google Docs for real-time internal co-drafting and senior review' },
     { id: 'f4', name: '04_Final_Court_Filings', description: 'Signed, verified, stamped e-filed petitions with court filing receipts' },
     { id: 'f5', name: '05_Orders_and_Judgments', description: 'Daily bench interim orders, certified copy scans, final decrees' },
+    { id: 'f7', name: '05_AutoFetched_Court_Orders', description: 'Dedicated archive for automated eCourts CIS and High Court signed order sheets' },
     { id: 'f6', name: '06_Conference_Briefs', description: 'Compiled and indexed PDF briefs prepared for Senior Advocates & Clients' }
   ],
+  microserviceUrl: 'http://localhost:5001',
+  dedicatedOrderFolder: '05_AutoFetched_Court_Orders',
+  autoSyncEnabled: true,
+  autoSyncSchedule: '0 20 * * *', // Daily 8:00 PM
   reminderPresets: [
     { id: 'r0', daysBefore: 30, label: '30 Days Prior: Pleadings audit & rejoinder check', channel: 'In-App + Email', active: true },
     { id: 'r1', daysBefore: 14, label: '14 Days Prior: Initial draft & client compilation audit', channel: 'In-App + Email', active: true },

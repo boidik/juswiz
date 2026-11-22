@@ -24,7 +24,11 @@ import {
   X,
   Check,
   AlertTriangle,
-  ShieldAlert
+  ShieldAlert,
+  Cpu,
+  RefreshCw,
+  FolderSync,
+  Sparkles
 } from 'lucide-react';
 import { defaultSystemConfig } from '../../defaultConfig';
 import { extractDriveFolderId } from '../../services/googleWorkspace';
@@ -74,6 +78,34 @@ export const SystemCustomizer = () => {
   // Danger Zone confirmation state
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [confirmDeleteInput, setConfirmDeleteInput] = useState('');
+
+  // Microservice & Auto-Sync state
+  const [microserviceLogs, setMicroserviceLogs] = useState([]);
+  const [microserviceStatus, setMicroserviceStatus] = useState('UNKNOWN');
+  const [isTestingMicroservice, setIsTestingMicroservice] = useState(false);
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
+
+  const fetchMicroserviceStatus = async () => {
+    setIsTestingMicroservice(true);
+    try {
+      const url = config.microserviceUrl || 'http://localhost:5001';
+      const res = await fetch(`${url}/api/health`);
+      if (res.ok) {
+        const data = await res.json();
+        setMicroserviceStatus('ONLINE');
+        setMicroserviceLogs(data.scheduler?.logs || []);
+        showToast('Microservice is ONLINE and connected to eCourts engine!');
+      } else {
+        setMicroserviceStatus('OFFLINE');
+        showToast('Microservice replied with an error.', 'warn');
+      }
+    } catch (e) {
+      setMicroserviceStatus('OFFLINE');
+      showToast('Could not reach microservice on ' + (config.microserviceUrl || 'http://localhost:5001'), 'error');
+    } finally {
+      setIsTestingMicroservice(false);
+    }
+  };
 
   const handleSave = async () => {
     const res = await updateSystemConfig(config);
@@ -371,6 +403,7 @@ export const SystemCustomizer = () => {
           { key: 'DRIVE', label: 'Drive Hierarchy', icon: FolderTree },
           { key: 'REMINDERS', label: 'Hearing Reminders', icon: Clock },
           { key: 'EMAILS', label: 'Email Templates', icon: Mail },
+          { key: 'AUTOSYNC', label: 'Court Microservice & Auto-Sync', icon: Cpu },
           { key: 'DANGER', label: 'Data Reset', icon: ShieldAlert, isDanger: true },
         ].map(tab => {
           const Icon = tab.icon;
@@ -1223,6 +1256,194 @@ export const SystemCustomizer = () => {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB: AUTONOMOUS COURT MICROSERVICE & SCHEDULED SYNC */}
+        {activeTab === 'AUTOSYNC' && (
+          <div className="space-y-6 max-w-3xl">
+            <div>
+              <div className="flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-terracotta" />
+                <h3 className="text-base font-bold text-warm-obsidian font-display">
+                  eCourts Microservice Daemon & Automated Sync
+                </h3>
+              </div>
+              <p className="text-xs text-warm-muted mt-1">
+                Configure your self-hosted backend scraper, automated nightly court polling schedule, and dedicated Google Drive order archive folder.
+              </p>
+            </div>
+
+            {/* Microservice Live Status Card */}
+            <div className="p-5 rounded-3xl bg-white border border-warm-borderSubtle shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-warm-borderSubtle/60 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-3 h-3 rounded-full ${microserviceStatus === 'ONLINE' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                  <div>
+                    <h4 className="text-sm font-bold text-warm-obsidian">
+                      Microservice Daemon Status: <span className={microserviceStatus === 'ONLINE' ? 'text-emerald-700' : 'text-amber-700'}>{microserviceStatus}</span>
+                    </h4>
+                    <span className="text-[11px] font-mono text-warm-muted">
+                      {config.microserviceUrl || 'http://localhost:5001'} · Tesseract OCR Engine Ready
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fetchMicroserviceStatus}
+                  disabled={isTestingMicroservice}
+                  className="px-3.5 py-1.5 rounded-pill bg-warm-sand/60 hover:bg-warm-sand text-warm-obsidian border border-warm-borderSubtle text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-terracotta ${isTestingMicroservice ? 'animate-spin' : ''}`} />
+                  <span>Test Connection</span>
+                </button>
+              </div>
+
+              {/* Setting 1: Dedicated Google Drive Folder */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-warm-graphite">
+                  Dedicated Folder for Auto-Fetched Orders (Google Drive & Local Storage) *
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <FolderSync className="w-4 h-4 text-terracotta absolute left-3.5 top-2.5" />
+                    <input
+                      type="text"
+                      required
+                      value={config.dedicatedOrderFolder || '05_AutoFetched_Court_Orders'}
+                      onChange={(e) => setConfig(prev => ({
+                        ...prev,
+                        dedicatedOrderFolder: e.target.value.trim().replace(/[^a-zA-Z0-9_-]/g, '_')
+                      }))}
+                      className="w-full pl-9 pr-3 py-2 text-xs capsule-input font-mono"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-warm-muted">
+                  All court order PDFs pulled programmatically by the microservice are automatically isolated into this dedicated folder in Google Drive (e.g. <code>/{config.dedicatedOrderFolder || '05_AutoFetched_Court_Orders'}/</code>).
+                </p>
+              </div>
+
+              {/* Setting 2: Automated Nightly Schedule */}
+              <div className="pt-2 border-t border-warm-borderSubtle/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-warm-obsidian block">
+                      Automated Scheduled Court Sync (Cron Job)
+                    </label>
+                    <span className="text-[11px] text-warm-muted">
+                      Polls eCourts automatically after court rising hours every day.
+                    </span>
+                  </div>
+
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.autoSyncEnabled !== false}
+                      onChange={(e) => setConfig(prev => ({ ...prev, autoSyncEnabled: e.target.checked }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-terracotta"></div>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-warm-graphite mb-1">
+                      Cron Schedule Expression
+                    </label>
+                    <input
+                      type="text"
+                      value={config.autoSyncSchedule || '0 20 * * *'}
+                      onChange={(e) => setConfig(prev => ({ ...prev, autoSyncSchedule: e.target.value }))}
+                      className="w-full capsule-input text-xs font-mono"
+                      placeholder="0 20 * * *"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-warm-graphite mb-1">
+                      Schedule Description
+                    </label>
+                    <div className="p-2 rounded-2xl bg-warm-sand/40 border border-warm-borderSubtle text-xs text-warm-obsidian flex items-center gap-1.5 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-terracotta" />
+                      Daily at 8:00 PM (Court Day Rising Hours)
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Setting 3: Microservice Backend URL */}
+              <div className="pt-2 border-t border-warm-borderSubtle/60 space-y-1.5">
+                <label className="block text-xs font-semibold text-warm-graphite">
+                  Microservice Server URL
+                </label>
+                <input
+                  type="text"
+                  value={config.microserviceUrl || 'http://localhost:5001'}
+                  onChange={(e) => setConfig(prev => ({ ...prev, microserviceUrl: e.target.value }))}
+                  className="w-full capsule-input text-xs font-mono"
+                />
+                <p className="text-[11px] text-warm-muted">
+                  Runs locally on port 5001 or on your cloud backend (e.g. AWS/GCP/Docker).
+                </p>
+              </div>
+
+              {/* Action Button: Batch Sync */}
+              <div className="pt-3 border-t border-warm-borderSubtle/60 flex items-center justify-between">
+                <span className="text-xs text-warm-muted">
+                  Want to trigger sync across all active cases right now?
+                </span>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsBatchSyncing(true);
+                    showToast('Initiating firm-wide court database batch sync...');
+                    try {
+                      const url = config.microserviceUrl || 'http://localhost:5001';
+                      const res = await fetch(`${url}/api/sync/batch`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cases: [] })
+                      });
+                      if (res.ok) {
+                        showToast('Batch court order sync completed!');
+                        fetchMicroserviceStatus();
+                      }
+                    } catch (e) {
+                      showToast('Could not run batch sync: ' + e.message, 'error');
+                    } finally {
+                      setIsBatchSyncing(false);
+                    }
+                  }}
+                  disabled={isBatchSyncing}
+                  className="capsule-btn-dark text-xs disabled:opacity-50"
+                >
+                  <span>{isBatchSyncing ? 'Syncing Portfolio...' : 'Run Portfolio Batch Sync Now'}</span>
+                  <div className="knob"><RefreshCw className={`w-3.5 h-3.5 text-white ${isBatchSyncing ? 'animate-spin' : ''}`} /></div>
+                </button>
+              </div>
+            </div>
+
+            {/* Microservice Live Logs Terminal */}
+            {microserviceLogs.length > 0 && (
+              <div className="bg-warm-obsidian rounded-3xl p-4 text-xs font-mono text-white/90 space-y-1.5 max-h-56 overflow-y-auto border border-white/10 shadow-inner">
+                <div className="text-[10px] uppercase font-bold text-terracotta-light flex items-center gap-1.5 pb-1 border-b border-white/10">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Microservice Execution Audit Log
+                </div>
+                {microserviceLogs.map((log, idx) => (
+                  <div key={idx} className="flex items-start gap-2 leading-relaxed">
+                    <span className="text-warm-muted text-[10px]">{log.timestamp.slice(11, 19)}</span>
+                    <span className="text-terracotta font-bold">[{log.type}]</span>
+                    <span className="text-white/80">{log.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
           </div>
         )}
 
