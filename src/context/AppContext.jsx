@@ -897,11 +897,16 @@ export const AppProvider = ({ children }) => {
   const ingestOfficialCourtOrder = async ({
     caseId,
     file,
+    fileName,
     orderDate,
     courtName,
     summary = '',
     bench = '',
-    nextListingDate = ''
+    nextListingDate = '',
+    localUrl = null,
+    driveUrl: initialDriveUrl = null,
+    driveFileId: initialDriveFileId = null,
+    fileSize: initialFileSize = null
   }) => {
     const targetCase = cases.find(c => c.id === caseId);
     if (!targetCase) return { success: false, message: 'Case not found' };
@@ -909,10 +914,10 @@ export const AppProvider = ({ children }) => {
     const effectiveDate = orderDate || new Date().toISOString().split('T')[0];
     const cleanCourtName = (courtName || targetCase.courtName || 'Court').replace(/[^a-zA-Z0-9]/g, '_');
     const cleanCaseNo = targetCase.caseNumber.replace(/[\/\s]/g, '_');
-    const orderTitle = `${effectiveDate}_ORDER_${cleanCourtName}_${cleanCaseNo}.pdf`;
+    const orderTitle = fileName || `${effectiveDate}_ORDER_${cleanCourtName}_${cleanCaseNo}.pdf`;
 
-    let driveFileId = null;
-    let driveUrl = `https://drive.google.com/drive/search?q=name:'${encodeURIComponent(orderTitle)}'`;
+    let driveFileId = initialDriveFileId || null;
+    let driveUrl = initialDriveUrl || (driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view` : `https://drive.google.com/drive/search?q=name:'${encodeURIComponent(orderTitle)}'`);
 
     const dedicatedFolderName = systemConfig?.dedicatedOrderFolder || '05_AutoFetched_Court_Orders';
 
@@ -932,21 +937,27 @@ export const AppProvider = ({ children }) => {
         }
       }
 
+      const formattedSize = file?.size 
+        ? `${(file.size / 1024 / 1024).toFixed(2)} MB` 
+        : (initialFileSize ? `${(initialFileSize / 1024).toFixed(1)} KB` : '1.4 MB');
+
       const orderDocRecord = {
         caseId: targetCase.id,
         name: orderTitle,
-        originalName: file?.name || orderTitle,
+        originalName: file?.name || fileName || orderTitle,
         folder: dedicatedFolderName,
         category: 'Court Order',
         party: 'Court',
         uploadedBy: currentUser?.name || 'Chambers Counsel',
         uploadedByUid: currentUser?.uid || '',
         uploadedAt: new Date().toISOString(),
-        fileSize: file?.size ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : '1.4 MB',
+        fileSize: formattedSize,
         fileType: 'application/pdf',
         driveUrl,
         driveFileId,
-        hasRealFileLink: Boolean(driveFileId),
+        localUrl: localUrl || null,
+        fileUrl: localUrl || driveUrl,
+        hasRealFileLink: Boolean(driveFileId || localUrl),
         coEditUrl: null,
         tags: ['Court Database Order', courtName || targetCase.courtName, 'Verified Bench Order'],
         isAutoIndexed: true,

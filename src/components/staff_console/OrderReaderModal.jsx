@@ -34,10 +34,10 @@ export const OrderReaderModal = ({ isOpen, onClose, order, caseData, onOpenInges
   const effectiveNextDate = caseData?.nextHearingDate || 'Pending Listing';
   const effectiveDocName = order.name || order.fileName || order.originalName || 'Court_Order_Sheet.pdf';
 
-  // Check if we have an exact Google Drive file ID
+  // Check if we have an exact Google Drive file ID or local microservice URL
   const driveFileId = order.driveFileId || extractDriveFileId(order.driveUrl);
   const exactFileDriveUrl = getExactFileDriveUrl(order);
-  const hasExactFile = Boolean(driveFileId || order.blobUrl);
+  const hasExactFile = Boolean(driveFileId || order.localUrl || order.blobUrl);
 
   const handleCopyTranscript = () => {
     if (!effectiveSummary) {
@@ -194,10 +194,10 @@ export const OrderReaderModal = ({ isOpen, onClose, order, caseData, onOpenInges
                     className="w-full h-[520px] sm:h-[580px] border-0"
                   />
                 </div>
-              ) : order.blobUrl ? (
+              ) : (order.localUrl || order.blobUrl) ? (
                 <div className="w-full rounded-2xl overflow-hidden border border-warm-borderSubtle shadow-inner bg-stone-100">
                   <iframe
-                    src={order.blobUrl}
+                    src={order.localUrl || order.blobUrl}
                     title="Authentic Court Order PDF Viewer"
                     className="w-full h-[520px] sm:h-[580px] border-0"
                   />

@@ -1,4 +1,4 @@
-const Tesseract = require('tesseract.js');
+const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -7,6 +7,67 @@ const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
 
 // In-memory court session cache with 10-minute TTL
 const activeSessions = new Map();
+
+/**
+ * Dynamically scrapes rotating anti-bot secret and header specifications
+ * from eCourts components.js.
+ */
+async function scrapeAntiBotHeaders(cookieHeader = '') {
+  try {
+    const homeRes = await fetch(`${ECOURTS_BASE}/`, {
+      headers: {
+        'User-Agent': UA,
+        'Referer': `${ECOURTS_BASE}/`,
+        'Cookie': cookieHeader
+      }
+    });
+    const homeHtml = await homeRes.text();
+
+    const compMatch = homeHtml.match(/js\/components\.js(?:\?v=\d+)?/i);
+    const compUrl = compMatch ? `${ECOURTS_BASE}/${compMatch[0]}` : `${ECOURTS_BASE}/js/components.js`;
+
+    const compRes = await fetch(compUrl, {
+      headers: {
+        'User-Agent': UA,
+        'Referer': `${ECOURTS_BASE}/`,
+        'Cookie': cookieHeader
+      }
+    });
+    const compJs = await compRes.text();
+
+    const delimMatch = compJs.match(/var\s+delimeter\s*=\s*["']([^"']+)["']/);
+    const delimeter = delimMatch ? delimMatch[1] : '';
+
+    const spec = {};
+    const blockMatches = compJs.match(/headers\s*:\s*\{([^{}]*)\}/g) || [];
+    for (const block of blockMatches) {
+      const entryRegex = /["']([A-Za-z0-9_-]+)["']\s*:\s*(?:["']([^"']*)["']|([A-Za-z_$][\w$]*))/g;
+      let m;
+      const curSpec = {};
+      while ((m = entryRegex.exec(block)) !== null) {
+        const [, name, lit, ident] = m;
+        if (!ident) {
+          curSpec[name] = lit;
+        } else if (ident === 'delimeter') {
+          curSpec[name] = delimeter;
+        }
+      }
+      if (delimeter && Object.values(curSpec).includes(delimeter)) {
+        Object.assign(spec, curSpec);
+        break;
+      }
+    }
+
+    if (!Object.keys(spec).length && delimeter) {
+      spec['delimeter'] = delimeter;
+    }
+
+    return { delimeter, spec };
+  } catch (err) {
+    console.warn('[eCourts Scraper] Could not scrape components.js headers:', err.message);
+    return { delimeter: '', spec: {} };
+  }
+}
 
 /**
  * Parses all order rows and displayPdf(...) calls from eCourts casetype_list HTML.
@@ -21,7 +82,7 @@ function parseOrderRows(html) {
     const rowHtml = rowMatch[1];
     
     // Look for displayPdf call in row
-    const pdfMatch = rowHtml.match(/displayPdf\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)/i);
+    const pdfMatch = rowHtml.match(/displayPdf\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]*)['"]\s*\)/i);
     
     if (pdfMatch) {
       const cells = [];
@@ -33,8 +94,10 @@ function parseOrderRows(html) {
       
       const dateMatch = rowHtml.match(/(\d{2}[-/]\d{2}[-/]\d{4}|\d{4}[-/]\d{2}[-/]\d{2})/);
       const orderDate = dateMatch ? dateMatch[1] : (cells[1] || new Date().toISOString().split('T')[0]);
-      const orderNumber = cells[0] || (orders.length + 1).toString();
-      const orderSummary = cells[2] || cells[3] || 'Signed Judicial Order Sheet';
+      const orderNumber = (cells[0] || '').replace(/&nbsp;/g, '').trim() || (orders.length + 1).toString();
+      
+      const ariaMatch = rowHtml.match(/aria-label=['"]([^'"]+)['"]/i);
+      const orderSummary = ariaMatch ? ariaMatch[1].replace('Interim Orders |', '').trim() : (cells[2] || 'Signed Judicial Order Sheet');
 
       orders.push({
         orderNumber,
@@ -51,56 +114,43 @@ function parseOrderRows(html) {
     }
   }
 
-  // Also check for direct PDF links if any
-  const directPdfRegex = /href=['"]([^'"]*(?:order|judgment|display_pdf)[^'"]*\.pdf[^'"]*)['"]/gi;
-  let directMatch;
-  while ((directMatch = directPdfRegex.exec(html)) !== null) {
-    const url = directMatch[1].startsWith('http') ? directMatch[1] : `${ECOURTS_BASE}/${directMatch[1].replace(/^\//, '')}`;
-    if (!orders.some(o => o.directPdfUrl === url)) {
-      orders.push({
-        orderNumber: (orders.length + 1).toString(),
-        orderDate: new Date().toISOString().split('T')[0],
-        orderSummary: 'Direct Court Order PDF',
-        directPdfUrl: url
-      });
-    }
-  }
-
   return orders;
 }
 
 /**
  * Downloads the authentic PDF binary from eCourts home/display_pdf endpoint.
  */
-async function downloadPdfFile(cookieHeader, appToken, pdfParams) {
+async function downloadPdfFile(cookieHeader, appToken, pdfParams, dynamicHeaders = {}) {
   const url = `${ECOURTS_BASE}/?p=home/display_pdf`;
   const postdata = `&normal_v=${encodeURIComponent(pdfParams.normal_v)}&case_val=${encodeURIComponent(pdfParams.case_num)}&court_code=${encodeURIComponent(pdfParams.court_code)}&filename=${encodeURIComponent(pdfParams.ofilename)}&appFlag=${encodeURIComponent(pdfParams.appFlag)}`;
   const body = `${postdata}&ajax_req=true&app_token=${encodeURIComponent(appToken)}`;
 
+  const headers = {
+    'Cookie': cookieHeader,
+    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    'X-Requested-With': 'XMLHttpRequest',
+    'User-Agent': UA,
+    'Accept': 'application/json, text/javascript, */*; q=0.01',
+    'Origin': 'https://services.ecourts.gov.in',
+    'Referer': `${ECOURTS_BASE}/`
+  };
+  Object.assign(headers, dynamicHeaders);
+
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Cookie': cookieHeader,
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      'X-Requested-With': 'XMLHttpRequest',
-      'User-Agent': UA,
-      'Accept': 'application/json, text/javascript, */*; q=0.01',
-      'Origin': 'https://services.ecourts.gov.in',
-      'Referer': `${ECOURTS_BASE}/?p=home/index`,
-      'delimeter': 'lfgiuyrie43',
-      'Wyurert654': 'lfgiuyrie43'
-    },
+    headers,
     body
   });
 
   const data = await res.json();
-  if (data.status && data.order) {
-    const fullPdfUrl = data.order.startsWith('http') ? data.order : `${ECOURTS_BASE}/${data.order.replace(/^\//, '')}`;
+  const pdfPath = data.order || data.filename;
+  if (pdfPath) {
+    const fullPdfUrl = pdfPath.startsWith('http') ? pdfPath : `${ECOURTS_BASE}/${pdfPath.replace(/^\//, '')}`;
     const pdfRes = await fetch(fullPdfUrl, {
       headers: {
         'Cookie': cookieHeader,
         'User-Agent': UA,
-        'Referer': `${ECOURTS_BASE}/?p=home/index`
+        'Referer': `${ECOURTS_BASE}/`
       }
     });
 
@@ -121,30 +171,53 @@ async function downloadPdfFile(cookieHeader, appToken, pdfParams) {
 async function createCaptchaSession() {
   const sessionId = Math.random().toString(36).substring(2, 12) + Date.now().toString(36);
 
-  const homeRes = await fetch(`${ECOURTS_BASE}/?p=home/index`, {
+  const homeRes = await fetch(`${ECOURTS_BASE}/`, {
     headers: {
       'User-Agent': UA,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Referer': `${ECOURTS_BASE}/`
     }
   });
 
   const cookies = homeRes.headers.getSetCookie();
   const cookieHeader = cookies.map(c => c.split(';')[0]).join('; ');
   const homeHtml = await homeRes.text();
-  const tokenMatch = homeHtml.match(/id=['"]app_token['"][^>]+value=['"]([^'"]+)['"]/i);
-  const appToken = tokenMatch ? tokenMatch[1] : '';
 
-  const capMatch = homeHtml.match(/src=['"]([^'"]*securimage_show\.php[^'"]*)['"]/i);
+  const { delimeter, spec } = await scrapeAntiBotHeaders(cookieHeader);
+
+  // Call getCaptcha to get rotating app_token and captcha HTML
+  const ajaxHeaders = {
+    'Cookie': cookieHeader,
+    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    'X-Requested-With': 'XMLHttpRequest',
+    'User-Agent': UA,
+    'Accept': 'application/json, text/javascript, */*; q=0.01',
+    'Referer': `${ECOURTS_BASE}/`
+  };
+  Object.assign(ajaxHeaders, spec);
+
+  const capReq = await fetch(`${ECOURTS_BASE}/?p=casestatus/getCaptcha`, {
+    method: 'POST',
+    headers: ajaxHeaders,
+    body: 'ajax_req=true&app_token='
+  });
+  const capData = await capReq.json();
+
+  const appToken = capData.app_token || '';
+  const divCaptcha = capData.div_captcha || '';
+
+  const capMatch = divCaptcha.match(/src=['"]([^'"]*securimage_show\.php[^'"]*)['"]/i) ||
+                   homeHtml.match(/src=['"]([^'"]*securimage_show\.php[^'"]*)['"]/i);
   if (!capMatch) {
-    throw new Error('eCourts captcha image endpoint not found in home page.');
+    throw new Error('eCourts captcha image endpoint not found.');
   }
 
-  const captchaUrl = `${ECOURTS_BASE}/${capMatch[1].replace(/^\/ecourtindia_v6\//, '')}`;
+  const captchaUrl = capMatch[1].startsWith('http') ? capMatch[1] : `${ECOURTS_BASE}/${capMatch[1].replace(/^\/ecourtindia_v6\//, '').replace(/^\//, '')}`;
   const capRes = await fetch(captchaUrl, {
     headers: {
       'Cookie': cookieHeader,
       'User-Agent': UA,
-      'Referer': `${ECOURTS_BASE}/?p=home/index`
+      'Referer': `${ECOURTS_BASE}/`
     }
   });
 
@@ -154,6 +227,7 @@ async function createCaptchaSession() {
   activeSessions.set(sessionId, {
     cookieHeader,
     appToken,
+    dynamicHeaders: spec,
     createdAt: Date.now()
   });
 
@@ -190,22 +264,22 @@ async function submitCnrWithCaptcha(sessionId, cnrNumber, captchaCode) {
     };
   }
 
-  const postUrl = `${ECOURTS_BASE}/?p=cnr_status/searchByCNR/`;
+  const postUrl = `${ECOURTS_BASE}/?p=cnr_status/searchByCNR`;
   const postBody = `cino=${encodeURIComponent(cleanCnr)}&fcaptcha_code=${encodeURIComponent(cleanCaptcha)}&ajax_req=true&app_token=${encodeURIComponent(session.appToken)}`;
+
+  const headers = {
+    'Cookie': session.cookieHeader,
+    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+    'X-Requested-With': 'XMLHttpRequest',
+    'User-Agent': UA,
+    'Accept': 'application/json, text/javascript, */*; q=0.01',
+    'Referer': `${ECOURTS_BASE}/`
+  };
+  Object.assign(headers, session.dynamicHeaders || {});
 
   const searchRes = await fetch(postUrl, {
     method: 'POST',
-    headers: {
-      'Cookie': session.cookieHeader,
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      'X-Requested-With': 'XMLHttpRequest',
-      'User-Agent': UA,
-      'Accept': 'application/json, text/javascript, */*; q=0.01',
-      'Origin': 'https://services.ecourts.gov.in',
-      'Referer': `${ECOURTS_BASE}/?p=home/index`,
-      'delimeter': 'lfgiuyrie43',
-      'Wyurert654': 'lfgiuyrie43'
-    },
+    headers,
     body: postBody
   });
 
@@ -213,9 +287,7 @@ async function submitCnrWithCaptcha(sessionId, cnrNumber, captchaCode) {
   let jsonRes = null;
   try {
     jsonRes = JSON.parse(responseText);
-  } catch (e) {
-    // responseText might be HTML
-  }
+  } catch (e) {}
 
   // 1. Captcha failure from eCourts
   if (responseText.includes('Invalid Captcha') || responseText.includes('invalid captcha')) {
@@ -234,7 +306,7 @@ async function submitCnrWithCaptcha(sessionId, cnrNumber, captchaCode) {
     const cleanError = jsonRes.errormsg.replace(/<[^>]*>/g, '').trim();
     return {
       success: false,
-      error: `eCourts National Gateway reported: "${cleanError}". Please refresh captcha or use the 1-Click Judicial Portal Gateway.`
+      error: `eCourts National Gateway reported: "${cleanError}". Please refresh captcha.`
     };
   }
 
@@ -255,11 +327,11 @@ async function submitCnrWithCaptcha(sessionId, cnrNumber, captchaCode) {
   const orders = [];
   for (const ord of parsedOrders) {
     let pdfBuffer = null;
-    let pdfUrl = ord.directPdfUrl || null;
+    let pdfUrl = null;
 
     if (ord.pdfParams) {
       try {
-        const dlRes = await downloadPdfFile(session.cookieHeader, session.appToken, ord.pdfParams);
+        const dlRes = await downloadPdfFile(session.cookieHeader, jsonRes?.app_token || session.appToken, ord.pdfParams, session.dynamicHeaders);
         if (dlRes) {
           pdfBuffer = dlRes.pdfBuffer;
           pdfUrl = dlRes.pdfUrl;
@@ -289,166 +361,58 @@ async function submitCnrWithCaptcha(sessionId, cnrNumber, captchaCode) {
 }
 
 /**
- * Automated query by CNR using local Tesseract OCR with strict error detection.
- * If eCourts WAF or captcha fails, accurately reports the error.
+ * 100% Autonomous Zero-Interference Query by CNR.
+ * Executes python deep-learning OCR script to bypass Securimage captcha and anti-bot headers,
+ * extracts genuine court orders, and downloads signed PDF binaries.
  */
-async function queryEcourtsByCnr(cnrNumber, maxRetries = 3) {
-  const cleanCnr = (cnrNumber || '').replace(/[^a-zA-Z0-9]/g, '').trim().toUpperCase();
-  if (cleanCnr.length !== 16) {
-    return {
-      success: false,
-      error: `Invalid CNR length (${cleanCnr.length}). eCourts requires a 16-character alphanumeric CNR.`
-    };
-  }
+function queryEcourtsByCnr(cnrNumber, caseNumber = 'CASE', targetOutputDir = null) {
+  return new Promise((resolve) => {
+    const cleanCnr = (cnrNumber || '').replace(/[^a-zA-Z0-9]/g, '').trim().toUpperCase();
+    if (cleanCnr.length !== 16) {
+      return resolve({
+        success: false,
+        error: `Invalid CNR length (${cleanCnr.length}). eCourts requires a 16-character alphanumeric CNR.`
+      });
+    }
 
-  let attempt = 0;
-  let lastError = null;
+    const cleanCaseNo = (caseNumber || 'CASE').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const outDir = targetOutputDir || path.join(__dirname, '..', 'storage', 'autofetched_orders', cleanCaseNo);
+    const scriptPath = path.join(__dirname, '..', 'scripts', 'ecourts_auto_fetch.py');
 
-  while (attempt < maxRetries) {
-    attempt++;
-    console.log(`[eCourts Sync] Attempt ${attempt}/${maxRetries} for CNR: ${cleanCnr}...`);
+    const args = [
+      scriptPath,
+      '--cnr', cleanCnr,
+      '--output-dir', outDir,
+      '--case-number', cleanCaseNo,
+      '--max-retries', '8'
+    ];
 
-    try {
-      const homeRes = await fetch(`${ECOURTS_BASE}/?p=home/index`, {
-        headers: {
-          'User-Agent': UA,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    console.log(`[Autonomous Sync] Invoking Python deep-learning solver for CNR: ${cleanCnr}...`);
+
+    execFile('python3', args, { timeout: 120000, maxBuffer: 20 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (stdout && stdout.trim()) {
+        try {
+          const result = JSON.parse(stdout.trim());
+          return resolve(result);
+        } catch (parseErr) {
+          console.warn('[Autonomous Sync] Failed to parse stdout as JSON:', parseErr.message);
         }
-      });
-
-      const cookies = homeRes.headers.getSetCookie();
-      const cookieHeader = cookies.map(c => c.split(';')[0]).join('; ');
-      const homeHtml = await homeRes.text();
-      const tokenMatch = homeHtml.match(/id=['"]app_token['"][^>]+value=['"]([^'"]+)['"]/i);
-      const appToken = tokenMatch ? tokenMatch[1] : '';
-
-      const capMatch = homeHtml.match(/src=['"]([^'"]*securimage_show\.php[^'"]*)['"]/i);
-      if (!capMatch) {
-        throw new Error('eCourts captcha image endpoint not found.');
       }
 
-      const captchaUrl = `${ECOURTS_BASE}/${capMatch[1].replace(/^\/ecourtindia_v6\//, '')}`;
-      const capRes = await fetch(captchaUrl, {
-        headers: {
-          'Cookie': cookieHeader,
-          'User-Agent': UA,
-          'Referer': `${ECOURTS_BASE}/?p=home/index`
-        }
-      });
-
-      const imgBuffer = Buffer.from(await capRes.arrayBuffer());
-
-      const { data: { text } } = await Tesseract.recognize(imgBuffer, 'eng', {
-        tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-      });
-
-      const solvedCaptcha = text.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6);
-      console.log(`[eCourts Sync] OCR Solved Captcha: "${solvedCaptcha}"`);
-
-      if (!solvedCaptcha || solvedCaptcha.length < 4) {
-        lastError = 'Low-confidence captcha OCR';
-        continue;
-      }
-
-      const postUrl = `${ECOURTS_BASE}/?p=cnr_status/searchByCNR/`;
-      const postBody = `cino=${encodeURIComponent(cleanCnr)}&fcaptcha_code=${encodeURIComponent(solvedCaptcha)}&ajax_req=true&app_token=${encodeURIComponent(appToken)}`;
-
-      const searchRes = await fetch(postUrl, {
-        method: 'POST',
-        headers: {
-          'Cookie': cookieHeader,
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'X-Requested-With': 'XMLHttpRequest',
-          'User-Agent': UA,
-          'Accept': 'application/json, text/javascript, */*; q=0.01',
-          'Origin': 'https://services.ecourts.gov.in',
-          'Referer': `${ECOURTS_BASE}/?p=home/index`,
-          'delimeter': 'lfgiuyrie43',
-          'Wyurert654': 'lfgiuyrie43'
-        },
-        body: postBody
-      });
-
-      const responseText = await searchRes.text();
-      let jsonRes = null;
-      try {
-        jsonRes = JSON.parse(responseText);
-      } catch (e) {}
-
-      // Captcha error from eCourts
-      if (responseText.includes('Invalid Captcha') || responseText.includes('invalid captcha')) {
-        console.warn(`[eCourts Sync] eCourts reported Invalid Captcha ("${solvedCaptcha}"). Re-attempting...`);
-        lastError = 'eCourts reported Invalid Captcha';
-        continue;
-      }
-
-      // WAF or Invalid Request
-      if (jsonRes?.errormsg && !jsonRes?.casetype_list) {
-        const cleanError = jsonRes.errormsg.replace(/<[^>]*>/g, '').trim();
-        lastError = cleanError;
-        console.warn(`[eCourts Sync] eCourts error: ${cleanError}`);
-        continue;
-      }
-
-      // Record Not Found
-      if (responseText.includes('does not exist') || responseText.includes('Record not found') || responseText.includes('Entered CNR does not exist')) {
-        return {
-          success: true,
-          found: false,
-          cnrNumber: cleanCnr,
-          message: `CNR ${cleanCnr} is verified against eCourts national database. Currently pending listing/upload by court registry.`
-        };
-      }
-
-      // Parse Genuine Orders
-      const htmlContent = jsonRes?.casetype_list || responseText;
-      const parsedOrders = parseOrderRows(htmlContent);
-
-      const orders = [];
-      for (const ord of parsedOrders) {
-        let pdfBuffer = null;
-        let pdfUrl = ord.directPdfUrl || null;
-
-        if (ord.pdfParams) {
-          try {
-            const dlRes = await downloadPdfFile(cookieHeader, appToken, ord.pdfParams);
-            if (dlRes) {
-              pdfBuffer = dlRes.pdfBuffer;
-              pdfUrl = dlRes.pdfUrl;
-            }
-          } catch (dlErr) {
-            console.warn(`[eCourts Sync] Error downloading PDF for order ${ord.orderNumber}:`, dlErr.message);
-          }
-        }
-
-        orders.push({
-          orderNumber: ord.orderNumber,
-          orderDate: ord.orderDate,
-          orderSummary: ord.orderSummary,
-          pdfBuffer,
-          pdfUrl
+      if (err) {
+        console.error('[Autonomous Sync] Execution error:', err.message, stderr);
+        return resolve({
+          success: false,
+          error: `Automated sync execution error: ${err.message}`
         });
       }
 
-      return {
-        success: true,
-        found: true,
-        cnrNumber: cleanCnr,
-        orders,
-        message: `Successfully connected to eCourts database for CNR ${cleanCnr}. Discovered ${orders.length} signed orders.`
-      };
-
-    } catch (err) {
-      console.error(`[eCourts Sync] Error on attempt ${attempt}:`, err.message);
-      lastError = err.message;
-    }
-  }
-
-  // ACCURATE ERROR REPORTING: Never falsely claim 0 orders if automated fetch failed!
-  return {
-    success: false,
-    error: `eCourts National Firewall/WAF restricted automated query (${lastError || 'Security challenge active'}). Use the Live Court Session with Human Captcha Verification in Tab 1.`
-  };
+      return resolve({
+        success: false,
+        error: 'No output received from automated order fetcher.'
+      });
+    });
+  });
 }
 
 module.exports = {

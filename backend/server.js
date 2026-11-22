@@ -68,23 +68,31 @@ async function archiveOrders({ orders, caseNumber, driveFolderId, googleAccessTo
   for (let i = 0; i < orders.length; i++) {
     const ord = orders[i];
     const safeDate = (ord.orderDate || new Date().toISOString().split('T')[0]).replace(/[/\\:]/g, '-');
-    const fileName = `${safeDate}_ORDER_${cleanCaseNo}_${i + 1}.pdf`;
-    const localFilePath = path.join(caseLocalDir, fileName);
+    const fileName = ord.fileName || `${safeDate}_ORDER_${cleanCaseNo}_${i + 1}.pdf`;
+    const localFilePath = ord.filePath || path.join(caseLocalDir, fileName);
 
     let pdfBuffer = ord.pdfBuffer || null;
+    if (!pdfBuffer && fs.existsSync(localFilePath)) {
+      try {
+        pdfBuffer = fs.readFileSync(localFilePath);
+      } catch (readErr) {
+        console.warn(`Could not read local file ${localFilePath}:`, readErr.message);
+      }
+    }
 
     if (!pdfBuffer && ord.pdfUrl) {
       try {
         const dl = await fetch(ord.pdfUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
         if (dl.ok) {
           pdfBuffer = Buffer.from(await dl.arrayBuffer());
+          fs.writeFileSync(localFilePath, pdfBuffer);
         }
       } catch (dlErr) {
         console.warn(`Could not download ${ord.pdfUrl}:`, dlErr.message);
       }
     }
 
-    if (pdfBuffer) {
+    if (pdfBuffer && !fs.existsSync(localFilePath)) {
       fs.writeFileSync(localFilePath, pdfBuffer);
       addLog(`[Archived] Saved genuine court order to disk: ${fileName} (${pdfBuffer.length} bytes)`, 'ARCHIVE');
     }
@@ -100,12 +108,16 @@ async function archiveOrders({ orders, caseNumber, driveFolderId, googleAccessTo
       });
     }
 
+    const cleanOrderNum = (ord.orderNumber || (i + 1).toString()).replace(/&nbsp;/g, '').trim();
+    const cleanSummary = (ord.orderSummary || 'Signed Judicial Order Sheet').replace(/&nbsp;/g, '').trim();
+
     archivedOrders.push({
       fileName,
-      orderNumber: ord.orderNumber || (i + 1).toString(),
+      orderNumber: cleanOrderNum,
       orderDate: ord.orderDate,
-      orderSummary: ord.orderSummary || 'Signed Judicial Order Sheet',
+      orderSummary: cleanSummary,
       hasPdf: !!pdfBuffer,
+      fileSize: pdfBuffer ? pdfBuffer.length : ord.fileSize,
       localUrl: pdfBuffer ? `http://localhost:${PORT}/storage/autofetched_orders/${cleanCaseNo}/${fileName}` : null,
       driveUrl: driveInfo?.driveUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(fileName)}`,
       driveFileId: driveInfo?.fileId || null,
@@ -201,7 +213,7 @@ app.post('/api/sync/case', async (req, res) => {
   addLog(`[On-Demand Sync] Received sync request for Case: ${caseNumber || caseId} (CNR: ${cnrNumber})`, 'REQUEST');
 
   try {
-    const ecourtsResult = await queryEcourtsByCnr(cnrNumber);
+    const ecourtsResult = await queryEcourtsByCnr(cnrNumber, caseNumber);
 
     if (!ecourtsResult.success) {
       addLog(`[On-Demand Sync] Automated OCR blocked: ${ecourtsResult.error}`, 'WARN');
@@ -231,6 +243,7 @@ app.post('/api/sync/case', async (req, res) => {
       message: ecourtsResult.message,
       dedicatedFolderName,
       archivedOrders,
+      ordersCount: archivedOrders.length,
       timestamp: new Date().toISOString()
     });
 
